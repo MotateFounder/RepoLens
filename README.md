@@ -75,7 +75,7 @@ repolens --version
 repolens init <repo_path> --index-dir <index_path>
 repolens status --index-dir <index_path>
 repolens update --index-dir <index_path> [--format text|json] [--quiet] [--verbose] [--no-progress]
-repolens updateroot
+repolens updateroot [--include-file <path>] [--exclude-file <path>]
 repolens diagnostics --index-dir <index_path>
 
 repolens search --index-dir <index_path> --query <text> [--kind <kind>] [--limit <n>] [--partial] [--format text|json]
@@ -216,7 +216,15 @@ Index directory:    repolens.db, config, cache, diagnostics
 
 `diagnostics` reports SQLite database size and row counts for repositories, files, symbols, symbol parameters, symbol relations, snapshots, and changes. It is useful for explaining index growth after updates.
 
-`updateroot` reads `include.txt` and optional `exclude.txt` from the same directory as the `repolens` executable, stores `repolens.db` in that executable directory, and updates only the included paths that are not excluded. Each non-empty line in those files is a quoted or unquoted absolute file or directory path.
+`updateroot` stores `repolens.db` in the same directory as the `repolens` executable and updates only the included paths that are not excluded. By default, it reads `include.txt` and optional `exclude.txt` from that executable directory.
+
+Use custom path-list files when they need to live somewhere else:
+
+```bash
+repolens updateroot --include-file /path/to/include.txt --exclude-file /path/to/exclude.txt
+```
+
+`--include-file` is required only when `include.txt` is not beside the executable. `--exclude-file` is optional; when omitted, RepoLens uses `exclude.txt` beside the executable if it exists. Each non-empty line in those files is a quoted or unquoted absolute file or directory path.
 
 ---
 

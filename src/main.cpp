@@ -72,7 +72,8 @@ void print_help()
         << "  status --index-dir <index_path>              Show index status.\n"
         << "  update --index-dir <index_path> [--format text|json] [--quiet] [--verbose] [--no-progress]\n"
         << "                                               Scan files and update the index.\n"
-        << "  updateroot                                  Update repolens.db beside the executable using include.txt/exclude.txt.\n"
+        << "  updateroot [--include-file <path>] [--exclude-file <path>]\n"
+        << "                                               Update repolens.db beside the executable using path lists.\n"
         << "  diagnostics --index-dir <index_path>         Show SQLite row counts and database size.\n"
         << "  search --index-dir <index_path> --query <text> [--kind <kind>] [--limit <n>] [--partial] [--format text|json]\n"
         << "  context --index-dir <index_path> --symbols <A,B> [--partial] [--basic] [--level <n>] [--budget-chars <n>] [--include-tree] [--include-types] --format json\n"
@@ -867,16 +868,31 @@ int run_update(int argc, char* argv[])
 
 int run_updateroot(int argc, char* argv[])
 {
-    if (argc != 2) {
-        throw std::runtime_error("Usage: repolens updateroot");
+    const auto root = executable_root(argv[0]);
+    const auto include_file = read_option_path(argc, argv, "--include-file").value_or(root / "include.txt");
+    const auto exclude_file_option = read_option_path(argc, argv, "--exclude-file");
+    const auto exclude_file = exclude_file_option.value_or(root / "exclude.txt");
+    const bool require_exclude_file = exclude_file_option.has_value();
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string_view argument{argv[index]};
+        if (argument == "--include-file" || argument == "--exclude-file") {
+            ++index;
+            if (index >= argc || std::string_view{argv[index]}.rfind("--", 0) == 0) {
+                throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>]");
+            }
+            continue;
+        }
+
+        throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>]");
     }
 
-    const auto root = executable_root(argv[0]);
-    const auto include_file = root / "include.txt";
-    const auto exclude_file = root / "exclude.txt";
-
     if (!std::filesystem::exists(include_file)) {
-        throw std::runtime_error("include.txt was not found beside repolens.exe: " + include_file.string());
+        throw std::runtime_error("include path list was not found: " + include_file.string());
+    }
+
+    if (require_exclude_file && !std::filesystem::exists(exclude_file)) {
+        throw std::runtime_error("exclude path list was not found: " + exclude_file.string());
     }
 
     const auto include_paths = read_path_list(include_file);

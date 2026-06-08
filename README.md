@@ -24,7 +24,7 @@
 
 ---
 
-## $ whatis repolens
+## $ what is repolens
 
 RepoLens is a small terminal-based engine that indexes source repositories into an **external SQLite database** and retrieves precise code context for AI coding assistants.
 

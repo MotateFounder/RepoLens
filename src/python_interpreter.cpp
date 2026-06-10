@@ -266,10 +266,10 @@ void parse_python_source(const std::vector<LineInfo>& lines, repolens::ParseResu
 {
     std::vector<Scope> scopes;
     std::vector<std::string> decorators;
-    const std::regex class_regex{R"(^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*:)"};
-    const std::regex function_regex{R"(^\s*(async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?\s*:)"};
-    const std::regex assignment_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^=]+))?\s*=)"};
-    const std::regex import_regex{R"(^\s*(?:from\s+([A-Za-z0-9_\.]+)\s+import\s+(.+)|import\s+(.+)))"};
+    static const std::regex class_regex{R"(^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*:)"};
+    static const std::regex function_regex{R"(^\s*(async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?\s*:)"};
+    static const std::regex assignment_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^=]+))?\s*=)"};
+    static const std::regex import_regex{R"(^\s*(?:from\s+([A-Za-z0-9_\.]+)\s+import\s+(.+)|import\s+(.+)))"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);

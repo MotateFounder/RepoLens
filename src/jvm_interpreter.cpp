@@ -234,12 +234,12 @@ void parse_java(const std::vector<LineInfo>& lines, repolens::ParseResult& resul
     std::string package_name;
     std::vector<Scope> scopes;
     int brace_depth = 0;
-    const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*))"};
-    const std::regex import_regex{R"(^\s*import\s+(?:static\s+)?([A-Za-z_][A-Za-z0-9_.*]*))"};
-    const std::regex type_regex{R"(^\s*(?:(?:public|private|protected|abstract|final|static|sealed|non-sealed)\s+)*(class|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
-    const std::regex method_regex{R"(^\s*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\s+)*([A-Za-z_][A-Za-z0-9_<>,.? \[\]]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:throws\s+[^{]+)?\{?)"};
-    const std::regex ctor_regex{R"(^\s*(?:(?:public|private|protected)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{?)"};
-    const std::regex field_regex{R"(^\s*(?:(?:public|private|protected|static|final|volatile|transient)\s+)*([A-Za-z_][A-Za-z0-9_<>,.? \[\]]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=.*)?;)"}; 
+    static const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*))"};
+    static const std::regex import_regex{R"(^\s*import\s+(?:static\s+)?([A-Za-z_][A-Za-z0-9_.*]*))"};
+    static const std::regex type_regex{R"(^\s*(?:(?:public|private|protected|abstract|final|static|sealed|non-sealed)\s+)*(class|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
+    static const std::regex method_regex{R"(^\s*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\s+)*([A-Za-z_][A-Za-z0-9_<>,.? \[\]]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:throws\s+[^{]+)?\{?)"};
+    static const std::regex ctor_regex{R"(^\s*(?:(?:public|private|protected)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{?)"};
+    static const std::regex field_regex{R"(^\s*(?:(?:public|private|protected|static|final|volatile|transient)\s+)*([A-Za-z_][A-Za-z0-9_<>,.? \[\]]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=.*)?;)"}; 
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -314,11 +314,11 @@ void parse_kotlin(const std::vector<LineInfo>& lines, repolens::ParseResult& res
     std::string package_name;
     std::vector<Scope> scopes;
     int brace_depth = 0;
-    const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*))"};
-    const std::regex import_regex{R"(^\s*import\s+([A-Za-z_][A-Za-z0-9_.*]*))"};
-    const std::regex type_regex{R"(^\s*(?:(?:data|sealed|open|abstract|inner|enum)\s+)*(class|interface|object)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
-    const std::regex function_regex{R"(^\s*(?:(?:public|private|protected|internal|open|override|suspend|inline|operator)\s+)*fun\s+(?:[A-Za-z_][A-Za-z0-9_.<>]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?::\s*([A-Za-z_][A-Za-z0-9_.<>?]*))?)"};
-    const std::regex property_regex{R"(^\s*(?:(?:public|private|protected|internal|override|lateinit|const)\s+)*(val|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^=]+))?)"};
+    static const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_.]*))"};
+    static const std::regex import_regex{R"(^\s*import\s+([A-Za-z_][A-Za-z0-9_.*]*))"};
+    static const std::regex type_regex{R"(^\s*(?:(?:data|sealed|open|abstract|inner|enum)\s+)*(class|interface|object)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
+    static const std::regex function_regex{R"(^\s*(?:(?:public|private|protected|internal|open|override|suspend|inline|operator)\s+)*fun\s+(?:[A-Za-z_][A-Za-z0-9_.<>]*\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?::\s*([A-Za-z_][A-Za-z0-9_.<>?]*))?)"};
+    static const std::regex property_regex{R"(^\s*(?:(?:public|private|protected|internal|override|lateinit|const)\s+)*(val|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^=]+))?)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -435,9 +435,9 @@ void parse_pom(const std::vector<LineInfo>& lines, repolens::ParseResult& result
 
 void parse_gradle(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex dependency_regex{R"((?:implementation|api|compileOnly|runtimeOnly|testImplementation|classpath)\s*\(?\s*['"]([^'"]+)['"])"}; 
-    const std::regex plugin_regex{R"(id\s+['"]([^'"]+)['"])"};
-    const std::regex task_regex{R"(\btask\s+([A-Za-z_][A-Za-z0-9_]*)|tasks\.register\s*\(\s*['"]([^'"]+)['"])"}; 
+    static const std::regex dependency_regex{R"((?:implementation|api|compileOnly|runtimeOnly|testImplementation|classpath)\s*\(?\s*['"]([^'"]+)['"])"}; 
+    static const std::regex plugin_regex{R"(id\s+['"]([^'"]+)['"])"};
+    static const std::regex task_regex{R"(\btask\s+([A-Za-z_][A-Za-z0-9_]*)|tasks\.register\s*\(\s*['"]([^'"]+)['"])"}; 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto trimmed = trim(strip_line_comment(lines[index].text));
         const int line_number = static_cast<int>(index + 1);

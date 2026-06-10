@@ -236,10 +236,10 @@ std::string current_parent_name(const std::vector<Scope>& scopes)
 void parse_matlab_or_octave(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     std::vector<Scope> scopes;
-    const std::regex class_regex{R"(^\s*classdef(?:\s*\([^)]*\))?\s+([A-Za-z]\w*)(?:\s*<\s*(.+))?)"};
-    const std::regex function_regex{R"(^\s*function\s+(?:(?:\[[^\]]+\]|[A-Za-z]\w*)\s*=\s*)?([A-Za-z]\w*)\s*(?:\(([^)]*)\))?)"};
-    const std::regex property_regex{R"(^\s*([A-Za-z]\w*)\s*(?:\([^)]*\))?\s*(?:=.*)?$)"};
-    const std::regex assignment_regex{R"(^\s*([A-Za-z]\w*)\s*=)"};
+    static const std::regex class_regex{R"(^\s*classdef(?:\s*\([^)]*\))?\s+([A-Za-z]\w*)(?:\s*<\s*(.+))?)"};
+    static const std::regex function_regex{R"(^\s*function\s+(?:(?:\[[^\]]+\]|[A-Za-z]\w*)\s*=\s*)?([A-Za-z]\w*)\s*(?:\(([^)]*)\))?)"};
+    static const std::regex property_regex{R"(^\s*([A-Za-z]\w*)\s*(?:\([^)]*\))?\s*(?:=.*)?$)"};
+    static const std::regex assignment_regex{R"(^\s*([A-Za-z]\w*)\s*=)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -305,9 +305,9 @@ void parse_matlab_or_octave(const std::vector<LineInfo>& lines, repolens::ParseR
 void parse_scilab(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     std::vector<Scope> scopes;
-    const std::regex function_regex{R"(^\s*function\s+(?:(?:\[[^\]]+\]|[A-Za-z]\w*)\s*=\s*)?([A-Za-z]\w*)\s*(?:\(([^)]*)\))?)"};
-    const std::regex deff_regex{R"(^\s*deff\s*\(\s*['"][^=]*=\s*([A-Za-z]\w*)\s*\(([^)]*)\))"};
-    const std::regex assignment_regex{R"(^\s*([A-Za-z]\w*)\s*=)"};
+    static const std::regex function_regex{R"(^\s*function\s+(?:(?:\[[^\]]+\]|[A-Za-z]\w*)\s*=\s*)?([A-Za-z]\w*)\s*(?:\(([^)]*)\))?)"};
+    static const std::regex deff_regex{R"(^\s*deff\s*\(\s*['"][^=]*=\s*([A-Za-z]\w*)\s*\(([^)]*)\))"};
+    static const std::regex assignment_regex{R"(^\s*([A-Za-z]\w*)\s*=)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -365,10 +365,10 @@ std::string strip_objc_comment(const std::string& line)
 
 void parse_objective_c_m(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex import_regex{R"(^\s*#import\s+[<"]([^>"]+)[>"])"};
-    const std::regex type_regex{R"(^\s*@(?:interface|implementation|protocol)\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex method_regex{R"(^\s*[-+]\s*\(([^)]+)\)\s*([A-Za-z_][A-Za-z0-9_:]*))"};
-    const std::regex property_regex{R"(^\s*@property\b.*\s+([A-Za-z_][A-Za-z0-9_]*)\s*;)"};
+    static const std::regex import_regex{R"(^\s*#import\s+[<"]([^>"]+)[>"])"};
+    static const std::regex type_regex{R"(^\s*@(?:interface|implementation|protocol)\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex method_regex{R"(^\s*[-+]\s*\(([^)]+)\)\s*([A-Za-z_][A-Za-z0-9_:]*))"};
+    static const std::regex property_regex{R"(^\s*@property\b.*\s+([A-Za-z_][A-Za-z0-9_]*)\s*;)"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto code = trim(strip_objc_comment(lines[index].text));
         std::smatch match;

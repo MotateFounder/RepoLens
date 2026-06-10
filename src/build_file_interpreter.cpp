@@ -114,8 +114,8 @@ ParseResult BuildFileInterpreter::parse_file(const FileMetadata& file) const
         ? "make"
         : (lower_filename.ends_with(".sln") ? "solution" : "cmake");
 
-    const std::regex make_target_regex{R"(^\s*([A-Za-z0-9_\-\.]+)\s*:\s*([^=].*)?$)"};
-    const std::regex sln_project_regex{R"repolens(^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+)")repolens"};
+    static const std::regex make_target_regex{R"(^\s*([A-Za-z0-9_\-\.]+)\s*:\s*([^=].*)?$)"};
+    static const std::regex sln_project_regex{R"repolens(^Project\([^)]*\)\s*=\s*"([^"]+)",\s*"([^"]+)")repolens"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto& line = lines[index];

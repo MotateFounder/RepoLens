@@ -201,12 +201,12 @@ void parse_php_source(const std::vector<LineInfo>& lines, repolens::ParseResult&
     std::string namespace_name;
     std::vector<Scope> scopes;
     int brace_depth = 0;
-    const std::regex namespace_regex{R"(^\s*namespace\s+([A-Za-z_\\][A-Za-z0-9_\\]*))"};
-    const std::regex use_regex{R"(^\s*use\s+([^;]+);)"};
-    const std::regex type_regex{R"(^\s*(?:(?:abstract|final|readonly)\s+)*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
-    const std::regex function_regex{R"(^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?::\s*([A-Za-z_\\?][A-Za-z0-9_\\|?]*))?)"};
-    const std::regex property_regex{R"(^\s*(?:(?:public|private|protected|static|readonly)\s+)+(?:(?:[A-Za-z_\\?][A-Za-z0-9_\\|?]*|\?[\w\\]+)\s+)?(\$[A-Za-z_][A-Za-z0-9_]*)\s*(?:=.*)?;)"}; 
-    const std::regex const_regex{R"(^\s*(?:(?:public|private|protected)\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=)"};
+    static const std::regex namespace_regex{R"(^\s*namespace\s+([A-Za-z_\\][A-Za-z0-9_\\]*))"};
+    static const std::regex use_regex{R"(^\s*use\s+([^;]+);)"};
+    static const std::regex type_regex{R"(^\s*(?:(?:abstract|final|readonly)\s+)*(class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)(.*))"};
+    static const std::regex function_regex{R"(^\s*(?:(?:public|private|protected|static|final|abstract)\s+)*function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?::\s*([A-Za-z_\\?][A-Za-z0-9_\\|?]*))?)"};
+    static const std::regex property_regex{R"(^\s*(?:(?:public|private|protected|static|readonly)\s+)+(?:(?:[A-Za-z_\\?][A-Za-z0-9_\\|?]*|\?[\w\\]+)\s+)?(\$[A-Za-z_][A-Za-z0-9_]*)\s*(?:=.*)?;)"}; 
+    static const std::regex const_regex{R"(^\s*(?:(?:public|private|protected)\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);

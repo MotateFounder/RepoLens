@@ -88,10 +88,10 @@ std::vector<repolens::CodeParameter> split_params(const std::string& text)
 
 void parse_swift(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex type_regex{R"(^\s*(?:public|private|internal|open|final|actor\s+)*\s*(class|struct|enum|protocol|actor|extension)\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex function_regex{R"(^\s*(?:public|private|internal|open|static|class|override|mutating|async\s+)*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?)"};
-    const std::regex property_regex{R"(^\s*(?:public|private|internal|static|let|var)\s+(?:let|var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^={]+))?)"};
-    const std::regex import_regex{R"(^\s*import\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex type_regex{R"(^\s*(?:public|private|internal|open|final|actor\s+)*\s*(class|struct|enum|protocol|actor|extension)\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex function_regex{R"(^\s*(?:public|private|internal|open|static|class|override|mutating|async\s+)*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^{]+))?)"};
+    static const std::regex property_regex{R"(^\s*(?:public|private|internal|static|let|var)\s+(?:let|var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*([^={]+))?)"};
+    static const std::regex import_regex{R"(^\s*import\s+([A-Za-z_][A-Za-z0-9_]*))"};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         const auto code = trim(strip_comment(lines[i].text));
         std::smatch match;
@@ -114,10 +114,10 @@ void parse_swift(const std::vector<LineInfo>& lines, repolens::ParseResult& resu
 
 void parse_objc(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex interface_regex{R"(^\s*@(?:interface|implementation|protocol)\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex method_regex{R"(^\s*[-+]\s*\(([^)]+)\)\s*([A-Za-z_][A-Za-z0-9_:]*))"};
-    const std::regex property_regex{R"(^\s*@property\b.*\s+([A-Za-z_][A-Za-z0-9_]*)\s*;)"};
-    const std::regex import_regex{R"(^\s*#import\s+[<"]([^>"]+)[>"])"};
+    static const std::regex interface_regex{R"(^\s*@(?:interface|implementation|protocol)\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex method_regex{R"(^\s*[-+]\s*\(([^)]+)\)\s*([A-Za-z_][A-Za-z0-9_:]*))"};
+    static const std::regex property_regex{R"(^\s*@property\b.*\s+([A-Za-z_][A-Za-z0-9_]*)\s*;)"};
+    static const std::regex import_regex{R"(^\s*#import\s+[<"]([^>"]+)[>"])"};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         const auto code = trim(strip_comment(lines[i].text));
         std::smatch match;

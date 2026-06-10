@@ -97,7 +97,7 @@ ParseResult SqlInterpreter::parse_file(const FileMetadata& file) const
         result.symbols.push_back(make_symbol("sql_migration", filename_for(file), file.relative_path, lines.empty() ? LineInfo{} : lines.front(), 1));
     }
 
-    const std::regex object_regex{R"(^\s*(?:CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+|DROP\s+)?(TABLE|VIEW|INDEX|PROCEDURE|PROC|FUNCTION|TRIGGER|SCHEMA)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([A-Za-z0-9_\.\[\]`"]+))", std::regex_constants::icase};
+    static const std::regex object_regex{R"(^\s*(?:CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+|DROP\s+)?(TABLE|VIEW|INDEX|PROCEDURE|PROC|FUNCTION|TRIGGER|SCHEMA)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([A-Za-z0-9_\.\[\]`"]+))", std::regex_constants::icase};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto code = trim(strip_comment(lines[index].text));
         std::smatch match;

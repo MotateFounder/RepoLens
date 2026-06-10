@@ -122,7 +122,7 @@ public:
     std::optional<RepositoryStatus> read_repository_status();
     std::unordered_map<std::string, StoredFile> read_files(long long repository_id);
     long long create_snapshot(long long repository_id);
-    void upsert_file(long long repository_id, const FileMetadata& file, long long snapshot_id, bool is_new_file);
+    long long upsert_file(long long repository_id, const FileMetadata& file, long long snapshot_id, bool is_new_file);
     void mark_file_deleted(long long file_id, long long snapshot_id);
     void record_change(
         long long repository_id,
@@ -135,10 +135,12 @@ public:
         const std::string& old_path,
         const std::string& new_path);
     void update_last_indexed_at(long long repository_id);
-    ParseSaveStats save_parse_result(long long repository_id, long long file_id, const ParseResult& result);
+    ParseSaveStats save_parse_result(long long repository_id, long long file_id, const ParseResult& result, bool lite_mode = false);
     int mark_symbols_inactive_for_file(long long file_id);
     int count_active_symbols(long long repository_id);
     DatabaseRowCounts count_rows();
+    void prune_lite_metadata();
+    void compact();
     std::vector<SearchResult> search(long long repository_id, const SearchOptions& options);
     std::vector<ContextSymbolCandidate> find_context_symbols(
         long long repository_id,

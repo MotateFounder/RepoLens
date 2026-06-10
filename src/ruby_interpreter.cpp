@@ -185,12 +185,12 @@ int current_parent_index(const std::vector<Scope>& scopes)
 void parse_ruby_source(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     std::vector<Scope> scopes;
-    const std::regex module_regex{R"(^\s*module\s+([A-Z][A-Za-z0-9_:]*))"};
-    const std::regex class_regex{R"(^\s*class\s+([A-Z][A-Za-z0-9_:]*)(?:\s*<\s*([A-Za-z0-9_:]+))?)"};
-    const std::regex method_regex{R"(^\s*def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?=]*)(?:\(([^)]*)\)|\s+([^#]+))?)"};
-    const std::regex const_regex{R"(^\s*([A-Z][A-Za-z0-9_]*)\s*=)"};
-    const std::regex attr_regex{R"(^\s*attr_(?:reader|writer|accessor)\s+(.+))"};
-    const std::regex route_regex{R"(^\s*(get|post|put|patch|delete|resources|resource)\s+[:'\"]?([^,'\"\s)]+))"};
+    static const std::regex module_regex{R"(^\s*module\s+([A-Z][A-Za-z0-9_:]*))"};
+    static const std::regex class_regex{R"(^\s*class\s+([A-Z][A-Za-z0-9_:]*)(?:\s*<\s*([A-Za-z0-9_:]+))?)"};
+    static const std::regex method_regex{R"(^\s*def\s+(?:self\.)?([A-Za-z_][A-Za-z0-9_!?=]*)(?:\(([^)]*)\)|\s+([^#]+))?)"};
+    static const std::regex const_regex{R"(^\s*([A-Z][A-Za-z0-9_]*)\s*=)"};
+    static const std::regex attr_regex{R"(^\s*attr_(?:reader|writer|accessor)\s+(.+))"};
+    static const std::regex route_regex{R"(^\s*(get|post|put|patch|delete|resources|resource)\s+[:'\"]?([^,'\"\s)]+))"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -254,8 +254,8 @@ void parse_ruby_source(const std::vector<LineInfo>& lines, repolens::ParseResult
 
 void parse_gems(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex gem_regex{R"((?:\bgem|\.add_(?:runtime_)?dependency|\.add_development_dependency)\s+['"]([^'"]+)['"])"};
-    const std::regex gemspec_name_regex{R"(\.name\s*=\s*['"]([^'"]+)['"])"};
+    static const std::regex gem_regex{R"((?:\bgem|\.add_(?:runtime_)?dependency|\.add_development_dependency)\s+['"]([^'"]+)['"])"};
+    static const std::regex gemspec_name_regex{R"(\.name\s*=\s*['"]([^'"]+)['"])"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto code = trim(strip_comment(lines[index].text));
         const int line_number = static_cast<int>(index + 1);

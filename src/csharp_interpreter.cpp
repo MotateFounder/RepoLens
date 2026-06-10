@@ -289,22 +289,41 @@ void finish_symbol_line_range(repolens::CodeSymbol& symbol, int line_count)
     symbol.line_end = std::min(symbol.line_end, line_count);
 }
 
-int find_block_end_line(const std::vector<LineInfo>& lines, std::size_t start_index)
+std::vector<int> compute_block_end_lines(const std::vector<LineInfo>& lines)
 {
-    int depth = 0;
-    bool saw_open = false;
+    std::vector<int> block_end_lines(lines.size(), 0);
+    std::vector<std::size_t> block_start_stack;
+    block_start_stack.reserve(lines.size() / 8 + 1);
 
-    for (std::size_t index = start_index; index < lines.size(); ++index) {
+    for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto line = strip_line_comment(lines[index].text);
-        depth += count_char(line, '{');
-        if (line.find('{') != std::string::npos) {
-            saw_open = true;
+        for (char character : line) {
+            if (character == '{') {
+                block_start_stack.push_back(index);
+            } else if (character == '}' && !block_start_stack.empty()) {
+                block_end_lines[block_start_stack.back()] = static_cast<int>(index + 1);
+                block_start_stack.pop_back();
+            }
         }
-        depth -= count_char(line, '}');
+    }
 
-        if (saw_open && depth <= 0) {
-            return static_cast<int>(index + 1);
+    int next_block_end = 0;
+    for (std::size_t offset = lines.size(); offset > 0; --offset) {
+        const std::size_t index = offset - 1;
+        if (block_end_lines[index] > 0) {
+            next_block_end = block_end_lines[index];
+        } else {
+            block_end_lines[index] = next_block_end;
         }
+    }
+
+    return block_end_lines;
+}
+
+int block_end_line_or_current(const std::vector<int>& block_end_lines, std::size_t start_index)
+{
+    if (start_index < block_end_lines.size() && block_end_lines[start_index] > 0) {
+        return block_end_lines[start_index];
     }
 
     return static_cast<int>(start_index + 1);
@@ -340,6 +359,7 @@ ParseResult CSharpInterpreter::parse_file(const FileMetadata& file) const
     result.language = language_id();
 
     const auto lines = read_lines(file.absolute_path);
+    const auto block_end_lines = compute_block_end_lines(lines);
     std::vector<Scope> scopes;
     int brace_depth = 0;
 
@@ -439,7 +459,7 @@ ParseResult CSharpInterpreter::parse_file(const FileMetadata& file) const
                 symbol.modifiers = modifiers_from_prefix(prefix_before_name(line, symbol.return_type));
                 symbol.visibility = visibility_from_modifiers(symbol.modifiers);
                 symbol.line_start = line_number;
-                symbol.line_end = find_block_end_line(lines, index);
+                symbol.line_end = block_end_line_or_current(block_end_lines, index);
                 symbol.char_start = lines[index].char_start + static_cast<int>(line.find(symbol.name));
                 symbol.char_end = line_end_char(lines, symbol.line_end);
                 symbol.char_count = symbol.char_end - symbol.char_start;
@@ -464,7 +484,7 @@ ParseResult CSharpInterpreter::parse_file(const FileMetadata& file) const
                 symbol.modifiers = modifiers_from_prefix(prefix_before_name(line, symbol.name));
                 symbol.visibility = visibility_from_modifiers(symbol.modifiers);
                 symbol.line_start = line_number;
-                symbol.line_end = find_block_end_line(lines, index);
+                symbol.line_end = block_end_line_or_current(block_end_lines, index);
                 symbol.char_start = lines[index].char_start + static_cast<int>(line.find(symbol.name));
                 symbol.char_end = line_end_char(lines, symbol.line_end);
                 symbol.char_count = symbol.char_end - symbol.char_start;

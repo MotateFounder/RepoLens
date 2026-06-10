@@ -179,13 +179,13 @@ void parse_go_source(const std::vector<LineInfo>& lines, repolens::ParseResult& 
 {
     std::string package_name;
     bool in_import_block = false;
-    const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex import_regex{R"(^\s*(?:import\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s+)?\"([^\"]+)\")"};
-    const std::regex function_regex{R"(^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_.*\[\]]*)?)"};
-    const std::regex method_regex{R"(^\s*func\s+\(([^)]*)\)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_.*\[\]]*)?)"};
-    const std::regex type_regex{R"(^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)\b)"};
-    const std::regex alias_regex{R"(^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.+))"};
-    const std::regex var_regex{R"(^\s*(?:var|const)\s+([A-Za-z_][A-Za-z0-9_]*)\b)"};
+    static const std::regex package_regex{R"(^\s*package\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex import_regex{R"(^\s*(?:import\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\s+)?\"([^\"]+)\")"};
+    static const std::regex function_regex{R"(^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_.*\[\]]*)?)"};
+    static const std::regex method_regex{R"(^\s*func\s+\(([^)]*)\)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_.*\[\]]*)?)"};
+    static const std::regex type_regex{R"(^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)\b)"};
+    static const std::regex alias_regex{R"(^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(.+))"};
+    static const std::regex var_regex{R"(^\s*(?:var|const)\s+([A-Za-z_][A-Za-z0-9_]*)\b)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -251,8 +251,8 @@ void parse_go_source(const std::vector<LineInfo>& lines, repolens::ParseResult& 
 void parse_go_mod(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     bool in_require_block = false;
-    const std::regex module_regex{R"(^\s*module\s+(\S+))"};
-    const std::regex require_regex{R"(^\s*(?:require\s+)?([A-Za-z0-9_.\-/]+)\s+v?[A-Za-z0-9_.+\-]+)"};
+    static const std::regex module_regex{R"(^\s*module\s+(\S+))"};
+    static const std::regex require_regex{R"(^\s*(?:require\s+)?([A-Za-z0-9_.\-/]+)\s+v?[A-Za-z0-9_.+\-]+)"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
         const auto trimmed = trim(strip_line_comment(lines[index].text));
@@ -278,7 +278,7 @@ void parse_go_mod(const std::vector<LineInfo>& lines, repolens::ParseResult& res
 
 void parse_go_sum(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex sum_regex{R"(^\s*([A-Za-z0-9_.\-/]+)\s+v?[A-Za-z0-9_.+\-/]+)"};
+    static const std::regex sum_regex{R"(^\s*([A-Za-z0-9_.\-/]+)\s+v?[A-Za-z0-9_.+\-/]+)"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
         const auto trimmed = trim(lines[index].text);

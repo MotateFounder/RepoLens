@@ -165,19 +165,43 @@ std::vector<repolens::CodeParameter> parse_parameters(const std::string& text)
     return parameters;
 }
 
-int find_block_end_line(const std::vector<LineInfo>& lines, std::size_t start_index)
+std::vector<int> compute_block_end_lines(const std::vector<LineInfo>& lines)
 {
-    int depth = 0;
-    bool saw_open = false;
-    for (std::size_t index = start_index; index < lines.size(); ++index) {
+    std::vector<int> block_end_lines(lines.size(), 0);
+    std::vector<std::size_t> block_start_stack;
+    block_start_stack.reserve(lines.size() / 8 + 1);
+
+    for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto line = strip_line_comment(lines[index].text);
-        depth += count_char(line, '{');
-        saw_open = saw_open || line.find('{') != std::string::npos;
-        depth -= count_char(line, '}');
-        if (saw_open && depth <= 0) {
-            return static_cast<int>(index + 1);
+        for (char character : line) {
+            if (character == '{') {
+                block_start_stack.push_back(index);
+            } else if (character == '}' && !block_start_stack.empty()) {
+                block_end_lines[block_start_stack.back()] = static_cast<int>(index + 1);
+                block_start_stack.pop_back();
+            }
         }
     }
+
+    int next_block_end = 0;
+    for (std::size_t offset = lines.size(); offset > 0; --offset) {
+        const std::size_t index = offset - 1;
+        if (block_end_lines[index] > 0) {
+            next_block_end = block_end_lines[index];
+        } else {
+            block_end_lines[index] = next_block_end;
+        }
+    }
+
+    return block_end_lines;
+}
+
+int block_end_line_or_current(const std::vector<int>& block_end_lines, std::size_t start_index)
+{
+    if (start_index < block_end_lines.size() && block_end_lines[start_index] > 0) {
+        return block_end_lines[start_index];
+    }
+
     return static_cast<int>(start_index + 1);
 }
 
@@ -261,11 +285,12 @@ ParseResult CppInterpreter::parse_file(const FileMetadata& file) const
     ParseResult result;
     result.language = language_id();
     const auto lines = read_lines(file.absolute_path);
+    const auto block_end_lines = compute_block_end_lines(lines);
     std::vector<Scope> scopes;
     int brace_depth = 0;
 
-    const std::regex namespace_regex{R"(^\s*namespace\s+([A-Za-z_][A-Za-z0-9_:]*)\s*\{?)"};
-    const std::regex type_regex{R"(^\s*(class|struct|enum)\s+(class\s+)?([A-Za-z_][A-Za-z0-9_]*)[^;]*\{?)"};
+    static const std::regex namespace_regex{R"(^\s*namespace\s+([A-Za-z_][A-Za-z0-9_:]*)\s*\{?)"};
+    static const std::regex type_regex{R"(^\s*(class|struct|enum)\s+(class\s+)?([A-Za-z_][A-Za-z0-9_]*)[^;]*\{?)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -324,7 +349,7 @@ ParseResult CppInterpreter::parse_file(const FileMetadata& file) const
                     parent_type ? parent_type->symbol_index : -1);
                 symbol.return_type = return_type_from_declaration(declaration, name);
                 symbol.parameters = parse_parameters(trimmed.substr(open + 1, close - open - 1));
-                symbol.line_end = find_block_end_line(lines, index);
+                symbol.line_end = block_end_line_or_current(block_end_lines, index);
                 symbol.char_end = line_end_char(lines, symbol.line_end);
                 symbol.char_count = std::max(0, symbol.char_end - symbol.char_start);
                 result.symbols.push_back(symbol);

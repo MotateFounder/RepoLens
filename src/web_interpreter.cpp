@@ -244,11 +244,11 @@ void parse_script_like(const repolens::FileMetadata& file, const std::vector<Lin
     int brace_depth = 0;
     std::string pending_angular_kind;
 
-    const std::regex class_regex{R"(^\s*(?:export\s+default\s+|export\s+)?class\s+([A-Za-z_$][A-Za-z0-9_$]*))"};
-    const std::regex function_regex{R"(^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\))"};
-    const std::regex arrow_regex{R"(^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*[:A-Za-z0-9_<>,\s\[\]\|&?]*=\s*(?:async\s*)?\(([^)]*)\)\s*=>)"};
-    const std::regex type_regex{R"(^\s*(?:export\s+)?(interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*))"};
-    const std::regex method_regex{R"(^\s*(?:async\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)\s*\{?)"};
+    static const std::regex class_regex{R"(^\s*(?:export\s+default\s+|export\s+)?class\s+([A-Za-z_$][A-Za-z0-9_$]*))"};
+    static const std::regex function_regex{R"(^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\))"};
+    static const std::regex arrow_regex{R"(^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*[:A-Za-z0-9_<>,\s\[\]\|&?]*=\s*(?:async\s*)?\(([^)]*)\)\s*=>)"};
+    static const std::regex type_regex{R"(^\s*(?:export\s+)?(interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*))"};
+    static const std::regex method_regex{R"(^\s*(?:async\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)\s*\{?)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);

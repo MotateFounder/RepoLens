@@ -67,7 +67,7 @@ repolens::CodeSymbol make_symbol(const std::string& kind, const std::string& nam
 
 void parse_dockerfile(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex instruction_regex{R"(^\s*(FROM|RUN|COPY|ADD|CMD|ENTRYPOINT|ARG|ENV|EXPOSE|WORKDIR)\s+(.+))", std::regex_constants::icase};
+    static const std::regex instruction_regex{R"(^\s*(FROM|RUN|COPY|ADD|CMD|ENTRYPOINT|ARG|ENV|EXPOSE|WORKDIR)\s+(.+))", std::regex_constants::icase};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         std::smatch match;
         if (std::regex_search(lines[i].text, match, instruction_regex)) {
@@ -79,7 +79,7 @@ void parse_dockerfile(const std::vector<LineInfo>& lines, repolens::ParseResult&
 void parse_yaml(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     std::string section;
-    const std::regex key_regex{R"(^\s*([A-Za-z0-9_.\-]+):\s*(.*))"};
+    static const std::regex key_regex{R"(^\s*([A-Za-z0-9_.\-]+):\s*(.*))"};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         const auto text = trim(lines[i].text);
         std::smatch match;
@@ -99,7 +99,7 @@ void parse_yaml(const std::vector<LineInfo>& lines, repolens::ParseResult& resul
 
 void parse_terraform(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex block_regex{R"REGEX(^\s*(resource|data|module|variable|output|provider|locals)\s*(?:"([^"]+)")?\s*(?:"([^"]+)")?)REGEX"};
+    static const std::regex block_regex{R"REGEX(^\s*(resource|data|module|variable|output|provider|locals)\s*(?:"([^"]+)")?\s*(?:"([^"]+)")?)REGEX"};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         std::smatch match;
         if (std::regex_search(lines[i].text, match, block_regex)) {

@@ -103,11 +103,11 @@ repolens::CodeSymbol make_symbol(const std::string& kind, const std::string& nam
 
 void parse_posix_shell(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex function_regex{R"(^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\))?\s*\{)"};
-    const std::regex export_regex{R"(^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)=?)"};
-    const std::regex alias_regex{R"(^\s*alias\s+([A-Za-z_][A-Za-z0-9_\-]*)=)"};
-    const std::regex source_regex{R"(^\s*(?:source|\.)\s+(.+))"};
-    const std::regex command_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_\-\.]*)\b)"};
+    static const std::regex function_regex{R"(^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(\))?\s*\{)"};
+    static const std::regex export_regex{R"(^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)=?)"};
+    static const std::regex alias_regex{R"(^\s*alias\s+([A-Za-z_][A-Za-z0-9_\-]*)=)"};
+    static const std::regex source_regex{R"(^\s*(?:source|\.)\s+(.+))"};
+    static const std::regex command_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_\-\.]*)\b)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto code = trim(strip_comment(lines[index].text));
@@ -135,12 +135,12 @@ void parse_posix_shell(const std::vector<LineInfo>& lines, repolens::ParseResult
 
 void parse_powershell(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
-    const std::regex function_regex{R"(^\s*function\s+([A-Za-z_][A-Za-z0-9_\-]*)\b)"};
-    const std::regex param_regex{R"(^\s*param\s*\()"};
-    const std::regex variable_regex{R"(^\s*(?:\[[^\]]+\]\s*)?\$([A-Za-z_][A-Za-z0-9_]*)\s*=)"};
-    const std::regex alias_regex{R"(^\s*(?:Set-Alias|New-Alias)\s+(?:-Name\s+)?([A-Za-z_][A-Za-z0-9_\-]*))"};
-    const std::regex manifest_regex{R"(^\s*(RootModule|ModuleVersion|GUID|Author|FunctionsToExport|CmdletsToExport)\s*=)"};
-    const std::regex command_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*-[A-Za-z_][A-Za-z0-9_]*)\b)"};
+    static const std::regex function_regex{R"(^\s*function\s+([A-Za-z_][A-Za-z0-9_\-]*)\b)"};
+    static const std::regex param_regex{R"(^\s*param\s*\()"};
+    static const std::regex variable_regex{R"(^\s*(?:\[[^\]]+\]\s*)?\$([A-Za-z_][A-Za-z0-9_]*)\s*=)"};
+    static const std::regex alias_regex{R"(^\s*(?:Set-Alias|New-Alias)\s+(?:-Name\s+)?([A-Za-z_][A-Za-z0-9_\-]*))"};
+    static const std::regex manifest_regex{R"(^\s*(RootModule|ModuleVersion|GUID|Author|FunctionsToExport|CmdletsToExport)\s*=)"};
+    static const std::regex command_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*-[A-Za-z_][A-Za-z0-9_]*)\b)"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const auto code = trim(strip_comment(lines[index].text));

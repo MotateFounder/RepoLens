@@ -2,6 +2,7 @@
 #include "repolens/interpreters/language_interpreter.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -99,6 +100,8 @@ struct SqliteApi {
         , free(sqlite3_free)
         , prepare_v2(sqlite3_prepare_v2)
         , step(sqlite3_step)
+        , reset(sqlite3_reset)
+        , clear_bindings(sqlite3_clear_bindings)
         , finalize(sqlite3_finalize)
         , bind_text(sqlite3_bind_text)
         , bind_int(sqlite3_bind_int)
@@ -120,6 +123,8 @@ struct SqliteApi {
               library,
               "sqlite3_prepare_v2"))
         , step(load_symbol<int (*)(sqlite3_stmt*)>(library, "sqlite3_step"))
+        , reset(load_symbol<int (*)(sqlite3_stmt*)>(library, "sqlite3_reset"))
+        , clear_bindings(load_symbol<int (*)(sqlite3_stmt*)>(library, "sqlite3_clear_bindings"))
         , finalize(load_symbol<int (*)(sqlite3_stmt*)>(library, "sqlite3_finalize"))
         , bind_text(load_symbol<int (*)(sqlite3_stmt*, int, const char*, int, sqlite3_destructor_type)>(
               library,
@@ -151,6 +156,8 @@ struct SqliteApi {
     void (*free)(void*) = nullptr;
     int (*prepare_v2)(sqlite3*, const char*, int, sqlite3_stmt**, const char**) = nullptr;
     int (*step)(sqlite3_stmt*) = nullptr;
+    int (*reset)(sqlite3_stmt*) = nullptr;
+    int (*clear_bindings)(sqlite3_stmt*) = nullptr;
     int (*finalize)(sqlite3_stmt*) = nullptr;
     int (*bind_text)(sqlite3_stmt*, int, const char*, int, sqlite3_destructor_type) = nullptr;
     int (*bind_int)(sqlite3_stmt*, int, int) = nullptr;
@@ -223,9 +230,63 @@ public:
         }
     }
 
+    void reset(sqlite3* database)
+    {
+        if (api_.reset(statement_) != sqlite_ok) {
+            throw std::runtime_error(std::string{"Failed to reset SQL statement: "} + api_.errmsg(database));
+        }
+        if (api_.clear_bindings(statement_) != sqlite_ok) {
+            throw std::runtime_error("Failed to clear SQL bindings.");
+        }
+    }
+
 private:
     const SqliteApi& api_;
     sqlite3_stmt* statement_ = nullptr;
+};
+
+class Transaction {
+public:
+    Transaction(const SqliteApi& api, sqlite3* database)
+        : api_(api)
+        , database_(database)
+    {
+        exec("BEGIN IMMEDIATE TRANSACTION;");
+    }
+
+    ~Transaction()
+    {
+        if (!committed_) {
+            try {
+                exec("ROLLBACK;");
+            } catch (...) {
+            }
+        }
+    }
+
+    void commit()
+    {
+        exec("COMMIT;");
+        committed_ = true;
+    }
+
+private:
+    void exec(const char* sql)
+    {
+        char* error = nullptr;
+        const int result = api_.exec(database_, sql, nullptr, nullptr, &error);
+        if (result != sqlite_ok) {
+            std::string message = error ? error : api_.errmsg(database_);
+            if (error) {
+                api_.free(error);
+            }
+            throw std::runtime_error("SQLite transaction error: " + message);
+        }
+    }
+
+    const SqliteApi& api_;
+    sqlite3* database_ = nullptr;
+    bool committed_ = false;
 };
 
 bool is_relation_type_candidate(const std::string& type_name)
@@ -533,7 +594,7 @@ long long SqliteDatabase::create_snapshot(long long repository_id)
     return impl_->api.last_insert_rowid(impl_->database);
 }
 
-void SqliteDatabase::upsert_file(
+long long SqliteDatabase::upsert_file(
     long long repository_id,
     const FileMetadata& file,
     long long snapshot_id,
@@ -560,7 +621,7 @@ void SqliteDatabase::upsert_file(
         statement.bind_int64(10, snapshot_id);
         statement.bind_int64(11, snapshot_id);
         statement.step_done(impl_->database);
-        return;
+        return impl_->api.last_insert_rowid(impl_->database);
     }
 
     Statement statement{
@@ -583,6 +644,18 @@ void SqliteDatabase::upsert_file(
     statement.bind_int64(10, repository_id);
     statement.bind_text(11, file.relative_path);
     statement.step_done(impl_->database);
+
+    Statement id_statement{
+        impl_->api,
+        impl_->database,
+        "SELECT id FROM files WHERE repository_id = ? AND relative_path = ?;"};
+    id_statement.bind_int64(1, repository_id);
+    id_statement.bind_text(2, file.relative_path);
+    const int result = impl_->api.step(id_statement.get());
+    if (result != sqlite_row) {
+        throw std::runtime_error(std::string{"Failed to read updated file id: "} + impl_->api.errmsg(impl_->database));
+    }
+    return impl_->api.column_int64(id_statement.get(), 0);
 }
 
 void SqliteDatabase::mark_file_deleted(long long file_id, long long snapshot_id)
@@ -636,9 +709,11 @@ void SqliteDatabase::update_last_indexed_at(long long repository_id)
     statement.step_done(impl_->database);
 }
 
-ParseSaveStats SqliteDatabase::save_parse_result(long long repository_id, long long file_id, const ParseResult& result)
+ParseSaveStats SqliteDatabase::save_parse_result(long long repository_id, long long file_id, const ParseResult& result, bool lite_mode)
 {
     ParseSaveStats stats;
+    Transaction transaction{impl_->api, impl_->database};
+
     {
         Statement count_statement{
             impl_->api,
@@ -681,105 +756,117 @@ ParseSaveStats SqliteDatabase::save_parse_result(long long repository_id, long l
     std::vector<long long> inserted_symbol_ids;
     inserted_symbol_ids.reserve(result.symbols.size());
 
+    Statement symbol_statement{
+        impl_->api,
+        impl_->database,
+        "INSERT INTO symbols ("
+        "repository_id, file_id, language, kind, name, qualified_name, signature, return_type, visibility, modifiers, "
+        "parent_symbol_id, line_start, line_end, char_start, char_end, char_count, description, tags, is_active"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, 0), ?, ?, ?, ?, ?, '', '', 1);"};
+
+    std::unique_ptr<Statement> parameter_statement;
+    if (!lite_mode) {
+        parameter_statement.reset(new Statement{
+            impl_->api,
+            impl_->database,
+            "INSERT INTO symbol_parameters (symbol_id, name, type, default_value, position, direction) "
+            "VALUES (?, ?, ?, ?, ?, ?);"});
+    }
+
     for (const auto& symbol : result.symbols) {
         long long parent_symbol_id = 0;
         if (symbol.parent_index >= 0 && static_cast<std::size_t>(symbol.parent_index) < inserted_symbol_ids.size()) {
             parent_symbol_id = inserted_symbol_ids[static_cast<std::size_t>(symbol.parent_index)];
         }
 
-        Statement statement{
-            impl_->api,
-            impl_->database,
-            "INSERT INTO symbols ("
-            "repository_id, file_id, language, kind, name, qualified_name, signature, return_type, visibility, modifiers, "
-            "parent_symbol_id, line_start, line_end, char_start, char_end, char_count, description, tags, is_active"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, 0), ?, ?, ?, ?, ?, '', '', 1);"};
-
-        statement.bind_int64(1, repository_id);
-        statement.bind_int64(2, file_id);
-        statement.bind_text(3, result.language);
-        statement.bind_text(4, symbol.kind);
-        statement.bind_text(5, symbol.name);
-        statement.bind_text(6, symbol.qualified_name);
-        statement.bind_text(7, symbol.signature);
-        statement.bind_text(8, symbol.return_type);
-        statement.bind_text(9, symbol.visibility);
-        statement.bind_text(10, symbol.modifiers);
-        statement.bind_int64(11, parent_symbol_id);
-        statement.bind_int(12, symbol.line_start);
-        statement.bind_int(13, symbol.line_end);
-        statement.bind_int(14, symbol.char_start);
-        statement.bind_int(15, symbol.char_end);
-        statement.bind_int(16, symbol.char_count);
-        statement.step_done(impl_->database);
+        symbol_statement.bind_int64(1, repository_id);
+        symbol_statement.bind_int64(2, file_id);
+        symbol_statement.bind_text(3, result.language);
+        symbol_statement.bind_text(4, symbol.kind);
+        symbol_statement.bind_text(5, symbol.name);
+        symbol_statement.bind_text(6, symbol.qualified_name);
+        symbol_statement.bind_text(7, symbol.signature);
+        symbol_statement.bind_text(8, symbol.return_type);
+        symbol_statement.bind_text(9, symbol.visibility);
+        symbol_statement.bind_text(10, symbol.modifiers);
+        symbol_statement.bind_int64(11, parent_symbol_id);
+        symbol_statement.bind_int(12, symbol.line_start);
+        symbol_statement.bind_int(13, symbol.line_end);
+        symbol_statement.bind_int(14, symbol.char_start);
+        symbol_statement.bind_int(15, symbol.char_end);
+        symbol_statement.bind_int(16, symbol.char_count);
+        symbol_statement.step_done(impl_->database);
 
         const long long symbol_id = impl_->api.last_insert_rowid(impl_->database);
+        symbol_statement.reset(impl_->database);
         inserted_symbol_ids.push_back(symbol_id);
         ++stats.symbols_inserted;
 
-        for (const auto& parameter : symbol.parameters) {
-            Statement parameter_statement{
-                impl_->api,
-                impl_->database,
-                "INSERT INTO symbol_parameters (symbol_id, name, type, default_value, position, direction) "
-                "VALUES (?, ?, ?, ?, ?, ?);"};
-            parameter_statement.bind_int64(1, symbol_id);
-            parameter_statement.bind_text(2, parameter.name);
-            parameter_statement.bind_text(3, parameter.type);
-            parameter_statement.bind_text(4, parameter.default_value);
-            parameter_statement.bind_int(5, parameter.position);
-            parameter_statement.bind_text(6, parameter.direction);
-            parameter_statement.step_done(impl_->database);
+        if (!lite_mode) {
+            for (const auto& parameter : symbol.parameters) {
+                parameter_statement->bind_int64(1, symbol_id);
+                parameter_statement->bind_text(2, parameter.name);
+                parameter_statement->bind_text(3, parameter.type);
+                parameter_statement->bind_text(4, parameter.default_value);
+                parameter_statement->bind_int(5, parameter.position);
+                parameter_statement->bind_text(6, parameter.direction);
+                parameter_statement->step_done(impl_->database);
+                parameter_statement->reset(impl_->database);
+            }
         }
     }
 
-    auto insert_relation = [&](long long source_symbol_id,
-                               long long target_symbol_id,
-                               const std::string& relation_type,
-                               const std::string& source_text,
-                               const std::string& target_text) {
+    if (!lite_mode) {
         Statement relation_statement{
             impl_->api,
             impl_->database,
             "INSERT INTO symbol_relations ("
             "repository_id, source_symbol_id, target_symbol_id, relation_type, source_text, target_text, confidence"
             ") VALUES (?, ?, NULLIF(?, 0), ?, ?, ?, 1.0);"};
-        relation_statement.bind_int64(1, repository_id);
-        relation_statement.bind_int64(2, source_symbol_id);
-        relation_statement.bind_int64(3, target_symbol_id);
-        relation_statement.bind_text(4, relation_type);
-        relation_statement.bind_text(5, source_text);
-        relation_statement.bind_text(6, target_text);
-        relation_statement.step_done(impl_->database);
-    };
 
-    for (std::size_t index = 0; index < result.symbols.size(); ++index) {
-        const auto& symbol = result.symbols[index];
-        const long long source_symbol_id = inserted_symbol_ids[index];
+        auto insert_relation = [&](long long source_symbol_id,
+                                   long long target_symbol_id,
+                                   const std::string& relation_type,
+                                   const std::string& source_text,
+                                   const std::string& target_text) {
+            relation_statement.bind_int64(1, repository_id);
+            relation_statement.bind_int64(2, source_symbol_id);
+            relation_statement.bind_int64(3, target_symbol_id);
+            relation_statement.bind_text(4, relation_type);
+            relation_statement.bind_text(5, source_text);
+            relation_statement.bind_text(6, target_text);
+            relation_statement.step_done(impl_->database);
+            relation_statement.reset(impl_->database);
+        };
 
-        if (symbol.parent_index >= 0 && static_cast<std::size_t>(symbol.parent_index) < inserted_symbol_ids.size()) {
-            const auto& parent = result.symbols[static_cast<std::size_t>(symbol.parent_index)];
-            const long long parent_symbol_id = inserted_symbol_ids[static_cast<std::size_t>(symbol.parent_index)];
-            insert_relation(parent_symbol_id, source_symbol_id, "contains", parent.qualified_name, symbol.qualified_name);
-            insert_relation(source_symbol_id, parent_symbol_id, "contained_by", symbol.qualified_name, parent.qualified_name);
-        }
+        for (std::size_t index = 0; index < result.symbols.size(); ++index) {
+            const auto& symbol = result.symbols[index];
+            const long long source_symbol_id = inserted_symbol_ids[index];
 
-        if ((symbol.kind == "method" || symbol.kind == "property") && is_relation_type_candidate(symbol.return_type)) {
-            insert_relation(source_symbol_id, 0, "returns_type", symbol.qualified_name, symbol.return_type);
-        }
+            if (symbol.parent_index >= 0 && static_cast<std::size_t>(symbol.parent_index) < inserted_symbol_ids.size()) {
+                const auto& parent = result.symbols[static_cast<std::size_t>(symbol.parent_index)];
+                const long long parent_symbol_id = inserted_symbol_ids[static_cast<std::size_t>(symbol.parent_index)];
+                insert_relation(parent_symbol_id, source_symbol_id, "contains", parent.qualified_name, symbol.qualified_name);
+                insert_relation(source_symbol_id, parent_symbol_id, "contained_by", symbol.qualified_name, parent.qualified_name);
+            }
 
-        if (symbol.kind == "method" || symbol.kind == "constructor") {
-            for (const auto& parameter : symbol.parameters) {
-                if (is_relation_type_candidate(parameter.type)) {
-                    insert_relation(source_symbol_id, 0, "accepts_parameter_type", symbol.qualified_name, parameter.type);
+            if ((symbol.kind == "method" || symbol.kind == "property") && is_relation_type_candidate(symbol.return_type)) {
+                insert_relation(source_symbol_id, 0, "returns_type", symbol.qualified_name, symbol.return_type);
+            }
+
+            if (symbol.kind == "method" || symbol.kind == "constructor") {
+                for (const auto& parameter : symbol.parameters) {
+                    if (is_relation_type_candidate(parameter.type)) {
+                        insert_relation(source_symbol_id, 0, "accepts_parameter_type", symbol.qualified_name, parameter.type);
+                    }
                 }
             }
-        }
 
-        if (symbol.kind == "class" || symbol.kind == "interface" || symbol.kind == "struct") {
-            for (std::size_t base_index = 0; base_index < symbol.base_types.size(); ++base_index) {
-                const auto relation_type = symbol.kind == "class" && base_index == 0 ? "inherits" : "implements";
-                insert_relation(source_symbol_id, 0, relation_type, symbol.qualified_name, symbol.base_types[base_index]);
+            if (symbol.kind == "class" || symbol.kind == "interface" || symbol.kind == "struct") {
+                for (std::size_t base_index = 0; base_index < symbol.base_types.size(); ++base_index) {
+                    const auto relation_type = symbol.kind == "class" && base_index == 0 ? "inherits" : "implements";
+                    insert_relation(source_symbol_id, 0, relation_type, symbol.qualified_name, symbol.base_types[base_index]);
+                }
             }
         }
     }
@@ -792,6 +879,7 @@ ParseSaveStats SqliteDatabase::save_parse_result(long long repository_id, long l
     file_statement.bind_text(2, result.success ? "parsed" : "failed");
     file_statement.bind_int64(3, file_id);
     file_statement.step_done(impl_->database);
+    transaction.commit();
     return stats;
 }
 
@@ -847,6 +935,22 @@ DatabaseRowCounts SqliteDatabase::count_rows()
     counts.snapshots = count_table_rows(impl_->api, impl_->database, "snapshots");
     counts.changes = count_table_rows(impl_->api, impl_->database, "changes");
     return counts;
+}
+
+void SqliteDatabase::prune_lite_metadata()
+{
+    Transaction transaction{impl_->api, impl_->database};
+    exec("DELETE FROM symbol_parameters;");
+    exec("DELETE FROM symbol_relations;");
+    exec("DELETE FROM changes;");
+    exec("DELETE FROM snapshots;");
+    transaction.commit();
+}
+
+void SqliteDatabase::compact()
+{
+    exec("PRAGMA optimize;");
+    exec("VACUUM;");
 }
 
 std::vector<SearchResult> SqliteDatabase::search(long long repository_id, const SearchOptions& options)

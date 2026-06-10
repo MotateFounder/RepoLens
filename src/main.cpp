@@ -70,13 +70,20 @@ void print_help()
         << "Commands:\n"
         << "  init <repo_path> --index-dir <index_path>    Initialize an external index.\n"
         << "  status --index-dir <index_path>              Show index status.\n"
-        << "  update --index-dir <index_path> [--format text|json] [--quiet] [--verbose] [--no-progress]\n"
+        << "  update --index-dir <index_path> [--format text|json] [--quiet] [--verbose] [--no-progress] [--lite]\n"
         << "                                               Scan files and update the index.\n"
-        << "  updateroot [--include-file <path>] [--exclude-file <path>]\n"
+        << "  update --index-dir <index_path> --staged [--lite]\n"
+        << "                                               Build replacement databases in a temp path and promote atomically.\n"
+        << "  updateroot [--include-file <path>] [--exclude-file <path>] [--lite] [--staged]\n"
         << "                                               Update repolens.db beside the executable using path lists.\n"
+        << "  update-files --index-dir <index_path> --repo-root <repo_path> --files <a,b> [--lite] [--replace]\n"
+        << "                                               Parse only listed files into the index.\n"
         << "  diagnostics --index-dir <index_path>         Show SQLite row counts and database size.\n"
+        << "  compact --index-dir <index_path>             Reclaim unused SQLite pages and optimize the database.\n"
         << "  search --index-dir <index_path> --query <text> [--kind <kind>] [--limit <n>] [--partial] [--format text|json]\n"
-        << "  context --index-dir <index_path> --symbols <A,B> [--partial] [--basic] [--level <n>] [--budget-chars <n>] [--include-tree] [--include-types] --format json\n"
+        << "  context --index-dir <index_path> --symbols <A,B> [--partial] [--basic] [--level <n>] [--budget-chars <n>] [--include-tree] [--include-types] [--grow --grow-files <a,b>] --format json\n"
+        << "  direct-context --file <path> --signature <text> [--repo-root <path>] [--budget-chars <n>] --format json\n"
+        << "                                               Parse one file in real time without touching a database.\n"
         << "  serve --index-dir <index_path> [--port 7123] Start local HTTP API on 127.0.0.1.\n"
         << "  enrich --index-dir <index_path> [--changed-only] Enrich symbols with optional AI metadata.\n"
         << '\n'
@@ -212,6 +219,7 @@ struct UpdateSummary {
     long long database_size_before = 0;
     long long database_size_after = 0;
     long long snapshot_id = 0;
+    bool lite_mode = false;
     ParseCounts parse_counts;
     std::vector<std::string> warnings;
 };
@@ -342,7 +350,8 @@ public:
             << "-------------------------\n"
             << "Repo root:        " << summary.repo_root << '\n'
             << "Index dir:        " << summary.index_root << '\n'
-            << "Database:         " << summary.database_path << "\n\n"
+            << "Database:         " << summary.database_path << '\n'
+            << "Mode:             " << (summary.lite_mode ? "lite" : "full") << "\n\n"
             << "Started at:       " << summary.started_at << '\n'
             << "Finished at:      " << summary.finished_at << '\n'
             << "Elapsed time:     " << std::fixed << std::setprecision(2) << summary.elapsed_seconds << " seconds\n\n"
@@ -413,7 +422,8 @@ void parse_changed_file(
     long long file_id,
     const repolens::FileMetadata& file,
     ParseCounts& counts,
-    UpdateSummary& summary)
+    UpdateSummary& summary,
+    bool lite_mode)
 {
     const auto* interpreter = interpreters.find_for_file(file);
     if (!interpreter) {
@@ -424,14 +434,14 @@ void parse_changed_file(
     try {
         const auto result = interpreter->parse_file(file);
         if (result.success) {
-            const auto stats = database.save_parse_result(repository_id, file_id, result);
+            const auto stats = database.save_parse_result(repository_id, file_id, result, lite_mode);
             summary.symbols_added += stats.symbols_inserted;
             summary.symbols_updated += std::min(stats.symbols_inserted, stats.symbols_deleted);
             summary.symbols_deleted += std::max(0, stats.symbols_deleted - stats.symbols_inserted);
             summary.symbols_deactivated += stats.symbols_deactivated;
             ++counts.parsed;
         } else {
-            const auto stats = database.save_parse_result(repository_id, file_id, result);
+            const auto stats = database.save_parse_result(repository_id, file_id, result, lite_mode);
             summary.symbols_added += stats.symbols_inserted;
             summary.symbols_updated += std::min(stats.symbols_inserted, stats.symbols_deleted);
             summary.symbols_deleted += std::max(0, stats.symbols_deleted - stats.symbols_inserted);
@@ -441,6 +451,27 @@ void parse_changed_file(
     } catch (const std::exception&) {
         ++counts.failed;
     }
+}
+
+void register_all_interpreters(repolens::InterpreterRegistry& interpreters)
+{
+    interpreters.register_interpreter(std::make_unique<repolens::CSharpInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::XmlInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::CppInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::BuildFileInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::WebInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::PythonInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::MatlabInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::JvmInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::GoInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::RustInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::PhpInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::RubyInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::ShellInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::SqlInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::DevOpsInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::AppleInterpreter>());
+    interpreters.register_interpreter(std::make_unique<repolens::RInterpreter>());
 }
 
 std::filesystem::path database_path_from_index(const std::filesystem::path& index_dir)
@@ -457,17 +488,23 @@ std::filesystem::path database_path_from_index(const std::filesystem::path& inde
 UpdateSummary update_index(
     const std::filesystem::path& index_dir,
     UpdateProgressReporter& reporter,
-    const repolens::ScanOptions& scan_options);
+    const repolens::ScanOptions& scan_options,
+    bool lite_mode,
+    bool closed_file_set = true,
+    bool force_parse_all = false);
 
 UpdateSummary update_index(const std::filesystem::path& index_dir, UpdateProgressReporter& reporter)
 {
-    return update_index(index_dir, reporter, {});
+    return update_index(index_dir, reporter, {}, false);
 }
 
 UpdateSummary update_index(
     const std::filesystem::path& index_dir,
     UpdateProgressReporter& reporter,
-    const repolens::ScanOptions& scan_options)
+    const repolens::ScanOptions& scan_options,
+    bool lite_mode,
+    bool closed_file_set,
+    bool force_parse_all)
 {
     const auto started = std::chrono::system_clock::now();
     const auto index_root = canonical_existing_directory(index_dir, "index_dir");
@@ -482,9 +519,13 @@ UpdateSummary update_index(
     summary.database_path = database_path.string();
     summary.started_at = format_timestamp(started);
     summary.database_size_before = file_size_or_zero(database_path);
+    summary.lite_mode = lite_mode;
 
     repolens::SqliteDatabase database{database_path};
     database.create_schema();
+    if (lite_mode) {
+        database.prune_lite_metadata();
+    }
 
     const auto status = database.read_repository_status();
     if (!status) {
@@ -508,24 +549,11 @@ UpdateSummary update_index(
 
     std::unordered_set<std::string> seen_paths;
     repolens::InterpreterRegistry interpreters;
-    interpreters.register_interpreter(std::make_unique<repolens::CSharpInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::XmlInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::CppInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::BuildFileInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::WebInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::PythonInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::MatlabInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::JvmInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::GoInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::RustInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::PhpInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::RubyInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::ShellInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::SqlInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::DevOpsInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::AppleInterpreter>());
-    interpreters.register_interpreter(std::make_unique<repolens::RInterpreter>());
+    register_all_interpreters(interpreters);
     auto ensure_snapshot = [&]() {
+        if (lite_mode) {
+            return 0LL;
+        }
         if (summary.snapshot_id == 0) {
             summary.snapshot_id = database.create_snapshot(status->repository_id);
         }
@@ -543,50 +571,69 @@ UpdateSummary update_index(
 
             if (stored == stored_files.end()) {
                 const auto snapshot_id = ensure_snapshot();
-                database.upsert_file(status->repository_id, scanned_file, snapshot_id, true);
-                const auto refreshed = database.read_files(status->repository_id).at(scanned_file.relative_path);
-                database.record_change(
-                    status->repository_id,
-                    snapshot_id,
-                    "file",
-                    refreshed.id,
-                    "file_added",
-                    "",
-                    scanned_file.content_hash,
-                    "",
-                    scanned_file.relative_path);
-                parse_changed_file(database, interpreters, status->repository_id, refreshed.id, scanned_file, summary.parse_counts, summary);
+                const long long file_id = database.upsert_file(status->repository_id, scanned_file, snapshot_id, true);
+                stored_files.emplace(
+                    scanned_file.relative_path,
+                    repolens::StoredFile{file_id, scanned_file.relative_path, scanned_file.content_hash, true});
+                if (!lite_mode) {
+                    database.record_change(
+                        status->repository_id,
+                        snapshot_id,
+                        "file",
+                        file_id,
+                        "file_added",
+                        "",
+                        scanned_file.content_hash,
+                        "",
+                        scanned_file.relative_path);
+                }
+                parse_changed_file(database, interpreters, status->repository_id, file_id, scanned_file, summary.parse_counts, summary, lite_mode);
                 ++summary.added;
             } else if (!stored->second.is_active) {
                 const auto snapshot_id = ensure_snapshot();
-                database.upsert_file(status->repository_id, scanned_file, snapshot_id, false);
-                database.record_change(
-                    status->repository_id,
-                    snapshot_id,
-                    "file",
-                    stored->second.id,
-                    "file_added",
-                    "",
-                    scanned_file.content_hash,
-                    "",
-                    scanned_file.relative_path);
-                parse_changed_file(database, interpreters, status->repository_id, stored->second.id, scanned_file, summary.parse_counts, summary);
+                const long long file_id = database.upsert_file(status->repository_id, scanned_file, snapshot_id, false);
+                stored->second.id = file_id;
+                stored->second.content_hash = scanned_file.content_hash;
+                stored->second.is_active = true;
+                if (!lite_mode) {
+                    database.record_change(
+                        status->repository_id,
+                        snapshot_id,
+                        "file",
+                        file_id,
+                        "file_added",
+                        "",
+                        scanned_file.content_hash,
+                        "",
+                        scanned_file.relative_path);
+                }
+                parse_changed_file(database, interpreters, status->repository_id, file_id, scanned_file, summary.parse_counts, summary, lite_mode);
                 ++summary.added;
-            } else if (stored->second.content_hash != scanned_file.content_hash) {
-                const auto snapshot_id = ensure_snapshot();
-                database.upsert_file(status->repository_id, scanned_file, snapshot_id, false);
-                database.record_change(
-                    status->repository_id,
-                    snapshot_id,
-                    "file",
-                    stored->second.id,
-                    "file_modified",
-                    stored->second.content_hash,
-                    scanned_file.content_hash,
-                    scanned_file.relative_path,
-                    scanned_file.relative_path);
-                parse_changed_file(database, interpreters, status->repository_id, stored->second.id, scanned_file, summary.parse_counts, summary);
-                ++summary.modified;
+            } else if (stored->second.content_hash != scanned_file.content_hash || force_parse_all) {
+                const bool content_changed = stored->second.content_hash != scanned_file.content_hash;
+                long long file_id = stored->second.id;
+                if (content_changed) {
+                    const auto snapshot_id = ensure_snapshot();
+                    file_id = database.upsert_file(status->repository_id, scanned_file, snapshot_id, false);
+                    if (!lite_mode) {
+                        database.record_change(
+                            status->repository_id,
+                            snapshot_id,
+                            "file",
+                            file_id,
+                            "file_modified",
+                            stored->second.content_hash,
+                            scanned_file.content_hash,
+                            scanned_file.relative_path,
+                            scanned_file.relative_path);
+                    }
+                    stored->second.id = file_id;
+                    stored->second.content_hash = scanned_file.content_hash;
+                    ++summary.modified;
+                } else {
+                    ++summary.unchanged;
+                }
+                parse_changed_file(database, interpreters, status->repository_id, file_id, scanned_file, summary.parse_counts, summary, lite_mode);
             } else {
                 ++summary.unchanged;
             }
@@ -601,25 +648,29 @@ UpdateSummary update_index(
         }
     }
 
-    for (const auto& [relative_path, stored_file] : stored_files) {
-        if (!stored_file.is_active || seen_paths.find(relative_path) != seen_paths.end()) {
-            continue;
-        }
+    if (closed_file_set) {
+        for (const auto& [relative_path, stored_file] : stored_files) {
+            if (!stored_file.is_active || seen_paths.find(relative_path) != seen_paths.end()) {
+                continue;
+            }
 
-        const auto snapshot_id = ensure_snapshot();
-        database.mark_file_deleted(stored_file.id, snapshot_id);
-        summary.symbols_deactivated += database.mark_symbols_inactive_for_file(stored_file.id);
-        database.record_change(
-            status->repository_id,
-            snapshot_id,
-            "file",
-            stored_file.id,
-            "file_deleted",
-            stored_file.content_hash,
-            "",
-            relative_path,
-            "");
-        ++summary.deleted;
+            const auto snapshot_id = ensure_snapshot();
+            database.mark_file_deleted(stored_file.id, snapshot_id);
+            summary.symbols_deactivated += database.mark_symbols_inactive_for_file(stored_file.id);
+            if (!lite_mode) {
+                database.record_change(
+                    status->repository_id,
+                    snapshot_id,
+                    "file",
+                    stored_file.id,
+                    "file_deleted",
+                    stored_file.content_hash,
+                    "",
+                    relative_path,
+                    "");
+            }
+            ++summary.deleted;
+        }
     }
 
     database.update_last_indexed_at(status->repository_id);
@@ -639,7 +690,7 @@ UpdateSummary update_index(
 UpdateSummary update_index(const std::filesystem::path& index_dir)
 {
     NullProgressReporter reporter;
-    return update_index(index_dir, reporter, {});
+    return update_index(index_dir, reporter, {}, false);
 }
 
 int run_init(int argc, char* argv[])
@@ -720,6 +771,7 @@ void print_update_compact(const UpdateSummary& summary)
 {
     std::cout
         << "Update complete\n"
+        << "Mode: " << (summary.lite_mode ? "lite" : "full") << '\n'
         << "Added: " << summary.added << '\n'
         << "Modified: " << summary.modified << '\n'
         << "Deleted: " << summary.deleted << '\n'
@@ -834,11 +886,118 @@ void ensure_updateroot_database(const std::filesystem::path& index_root, const s
     }
 }
 
+std::vector<std::filesystem::path> split_path_arguments(const std::string& paths)
+{
+    std::vector<std::filesystem::path> result;
+    std::stringstream stream{paths};
+    std::string item;
+    while (std::getline(stream, item, ',')) {
+        const auto first = std::find_if_not(item.begin(), item.end(), [](unsigned char c) { return std::isspace(c); });
+        const auto last = std::find_if_not(item.rbegin(), item.rend(), [](unsigned char c) { return std::isspace(c); }).base();
+        if (first < last) {
+            result.emplace_back(std::string{first, last});
+        }
+    }
+    return result;
+}
+
+UpdateSummary update_selected_files(
+    const std::filesystem::path& index_dir,
+    const std::filesystem::path& repo_path,
+    const std::vector<std::filesystem::path>& files,
+    bool lite_mode,
+    bool replace_missing,
+    UpdateProgressReporter& reporter)
+{
+    if (files.empty()) {
+        throw std::runtime_error("--files must contain at least one file path.");
+    }
+
+    const auto repo_root = canonical_existing_directory(repo_path, "repo_root");
+    const auto requested_index_root = std::filesystem::absolute(index_dir).lexically_normal();
+    validate_external_index(repo_root, requested_index_root);
+    const auto index_root = prepare_index_directory(requested_index_root);
+    ensure_updateroot_database(index_root, repo_root);
+
+    repolens::ScanOptions scan_options;
+    for (const auto& file : files) {
+        const auto absolute_file = file.is_absolute()
+            ? std::filesystem::absolute(file).lexically_normal()
+            : (repo_root / file).lexically_normal();
+        if (!std::filesystem::exists(absolute_file) || !std::filesystem::is_regular_file(absolute_file)) {
+            throw std::runtime_error("File does not exist: " + absolute_file.string());
+        }
+        if (!is_same_or_child_path(repo_root, absolute_file)) {
+            throw std::runtime_error("File is outside repo_root: " + absolute_file.string());
+        }
+        scan_options.include_paths.push_back(absolute_file);
+    }
+
+    return update_index(index_root, reporter, scan_options, lite_mode, replace_missing);
+}
+
+void copy_active_database_to_stage(const std::filesystem::path& index_root, const std::filesystem::path& stage_root)
+{
+    std::filesystem::remove_all(stage_root);
+    std::filesystem::create_directories(stage_root);
+    std::filesystem::copy_file(index_root / "repolens.db", stage_root / "repolens.db", std::filesystem::copy_options::overwrite_existing);
+}
+
+void promote_staged_database(const std::filesystem::path& index_root, const std::filesystem::path& stage_root)
+{
+    const auto active_database = index_root / "repolens.db";
+    const auto staged_database = stage_root / "repolens.db";
+    const auto backup_database = index_root / "repolens.db.previous";
+
+    std::filesystem::remove(backup_database);
+    std::filesystem::rename(active_database, backup_database);
+    try {
+        std::filesystem::rename(staged_database, active_database);
+        std::filesystem::remove(backup_database);
+    } catch (...) {
+        if (std::filesystem::exists(backup_database) && !std::filesystem::exists(active_database)) {
+            std::filesystem::rename(backup_database, active_database);
+        }
+        throw;
+    }
+}
+
+UpdateSummary update_index_staged(
+    const std::filesystem::path& index_dir,
+    UpdateProgressReporter& reporter,
+    const repolens::ScanOptions& scan_options,
+    bool lite_only)
+{
+    const auto index_root = canonical_existing_directory(index_dir, "index_dir");
+    const auto database_path = index_root / "repolens.db";
+    if (!std::filesystem::exists(database_path)) {
+        throw std::runtime_error("RepoLens database does not exist: " + database_path.string());
+    }
+
+    const auto stage_root = index_root.parent_path() / (index_root.filename().string() + ".stage");
+    copy_active_database_to_stage(index_root, stage_root);
+    auto summary = update_index(stage_root, reporter, scan_options, true, true);
+    promote_staged_database(index_root, stage_root);
+    summary.index_root = index_root.string();
+    summary.database_path = (index_root / "repolens.db").string();
+
+    if (!lite_only) {
+        copy_active_database_to_stage(index_root, stage_root);
+        summary = update_index(stage_root, reporter, scan_options, false, true, true);
+        promote_staged_database(index_root, stage_root);
+        summary.index_root = index_root.string();
+        summary.database_path = (index_root / "repolens.db").string();
+    }
+
+    std::filesystem::remove_all(stage_root);
+    return summary;
+}
+
 int run_update(int argc, char* argv[])
 {
     const auto index_dir = read_option_path(argc, argv, "--index-dir");
     if (!index_dir) {
-        throw std::runtime_error("Usage: repolens update --index-dir <index_path> [--format text|json] [--progress|--no-progress] [--quiet] [--verbose]");
+        throw std::runtime_error("Usage: repolens update --index-dir <index_path> [--format text|json] [--progress|--no-progress] [--quiet] [--verbose] [--lite] [--staged]");
     }
 
     const auto format = read_option_string(argc, argv, "--format").value_or("text");
@@ -849,10 +1008,14 @@ int run_update(int argc, char* argv[])
     const bool quiet = has_flag(argc, argv, "--quiet");
     const bool no_progress = quiet || has_flag(argc, argv, "--no-progress") || format == "json";
     const bool verbose = has_flag(argc, argv, "--verbose");
+    const bool lite_mode = has_flag(argc, argv, "--lite");
+    const bool staged = has_flag(argc, argv, "--staged");
 
     if (no_progress) {
         NullProgressReporter reporter;
-        const auto summary = update_index(*index_dir, reporter);
+        const auto summary = staged
+            ? update_index_staged(*index_dir, reporter, {}, lite_mode)
+            : update_index(*index_dir, reporter, {}, lite_mode);
         if (format == "json") {
             std::cout << update_json(summary);
         } else {
@@ -860,7 +1023,43 @@ int run_update(int argc, char* argv[])
         }
     } else {
         ConsoleProgressReporter reporter{verbose};
-        update_index(*index_dir, reporter);
+        if (staged) {
+            update_index_staged(*index_dir, reporter, {}, lite_mode);
+        } else {
+            update_index(*index_dir, reporter, {}, lite_mode);
+        }
+    }
+
+    return 0;
+}
+
+int run_update_files(int argc, char* argv[])
+{
+    const auto index_dir = read_option_path(argc, argv, "--index-dir");
+    const auto repo_root = read_option_path(argc, argv, "--repo-root");
+    const auto files_option = read_option_string(argc, argv, "--files");
+    const auto format = read_option_string(argc, argv, "--format").value_or("text");
+    if (!index_dir || !repo_root || !files_option || files_option->empty()) {
+        throw std::runtime_error("Usage: repolens update-files --index-dir <index_path> --repo-root <repo_path> --files <a,b> [--lite] [--replace] [--format text|json]");
+    }
+    if (format != "text" && format != "json") {
+        throw std::runtime_error("--format must be text or json.");
+    }
+
+    const bool lite_mode = has_flag(argc, argv, "--lite");
+    const bool replace_missing = has_flag(argc, argv, "--replace");
+    const bool no_progress = has_flag(argc, argv, "--quiet") || has_flag(argc, argv, "--no-progress") || format == "json";
+    if (no_progress) {
+        NullProgressReporter reporter;
+        const auto summary = update_selected_files(*index_dir, *repo_root, split_path_arguments(*files_option), lite_mode, replace_missing, reporter);
+        if (format == "json") {
+            std::cout << update_json(summary);
+        } else {
+            print_update_compact(summary);
+        }
+    } else {
+        ConsoleProgressReporter reporter{has_flag(argc, argv, "--verbose")};
+        update_selected_files(*index_dir, *repo_root, split_path_arguments(*files_option), lite_mode, replace_missing, reporter);
     }
 
     return 0;
@@ -876,15 +1075,19 @@ int run_updateroot(int argc, char* argv[])
 
     for (int index = 2; index < argc; ++index) {
         const std::string_view argument{argv[index]};
+        if (argument == "--lite" || argument == "--staged") {
+            continue;
+        }
+
         if (argument == "--include-file" || argument == "--exclude-file") {
             ++index;
             if (index >= argc || std::string_view{argv[index]}.rfind("--", 0) == 0) {
-                throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>]");
+                throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>] [--lite] [--staged]");
             }
             continue;
         }
 
-        throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>]");
+        throw std::runtime_error("Usage: repolens updateroot [--include-file <path>] [--exclude-file <path>] [--lite] [--staged]");
     }
 
     if (!std::filesystem::exists(include_file)) {
@@ -907,8 +1110,12 @@ int run_updateroot(int argc, char* argv[])
     scan_options.include_paths = include_paths;
     scan_options.exclude_paths = exclude_paths;
 
+    const bool lite_mode = has_flag(argc, argv, "--lite");
+    const bool staged = has_flag(argc, argv, "--staged");
     ConsoleProgressReporter reporter{false};
-    const auto summary = update_index(root, reporter, scan_options);
+    const auto summary = staged
+        ? update_index_staged(root, reporter, scan_options, lite_mode)
+        : update_index(root, reporter, scan_options, lite_mode);
 
     std::cout
         << "\nUpdateroot configuration\n"
@@ -919,6 +1126,7 @@ int run_updateroot(int argc, char* argv[])
         << "Included paths:  " << include_paths.size() << '\n'
         << "Excluded paths:  " << exclude_paths.size() << '\n'
         << "Repo root:       " << summary.repo_root << '\n'
+        << "Mode:            " << (summary.lite_mode ? "lite" : "full") << '\n'
         << "Database:        " << summary.database_path << '\n';
 
     return 0;
@@ -1279,6 +1487,135 @@ void expand_context_levels(
     }
 }
 
+bool symbol_matches_signature(const repolens::CodeSymbol& symbol, const std::string& query)
+{
+    return symbol.name == query ||
+        symbol.qualified_name == query ||
+        symbol.signature == query ||
+        (!symbol.signature.empty() && symbol.signature.find(query) != std::string::npos) ||
+        (!symbol.qualified_name.empty() && symbol.qualified_name.find(query) != std::string::npos);
+}
+
+std::string direct_context_json(
+    const std::filesystem::path& source_file,
+    const std::optional<std::filesystem::path>& repo_root_option,
+    const std::string& signature,
+    int budget_chars)
+{
+    const auto absolute_file = std::filesystem::canonical(source_file);
+    const auto repo_root = repo_root_option
+        ? canonical_existing_directory(*repo_root_option, "repo_root")
+        : std::filesystem::canonical(absolute_file.parent_path());
+    if (!is_same_or_child_path(repo_root, absolute_file)) {
+        throw std::runtime_error("--file must be inside --repo-root.");
+    }
+
+    const auto metadata = repolens::scan_file(repo_root, absolute_file);
+    repolens::InterpreterRegistry interpreters;
+    register_all_interpreters(interpreters);
+    const auto* interpreter = interpreters.find_for_file(metadata);
+    if (!interpreter) {
+        throw std::runtime_error("No parser is registered for file: " + absolute_file.string());
+    }
+
+    const auto parse_result = interpreter->parse_file(metadata);
+    std::vector<ContextItem> items;
+    std::vector<std::string> warnings = parse_result.diagnostics;
+    int remaining_budget = std::max(0, budget_chars);
+    long long symbol_id = 1;
+
+    for (const auto& symbol : parse_result.symbols) {
+        if (!symbol_matches_signature(symbol, signature)) {
+            continue;
+        }
+
+        ContextItem item;
+        item.requested_symbol = signature;
+        item.symbol.symbol_id = symbol_id++;
+        item.symbol.kind = symbol.kind;
+        item.symbol.name = symbol.name;
+        item.symbol.qualified_name = symbol.qualified_name;
+        item.symbol.signature = symbol.signature;
+        item.symbol.relative_path = metadata.relative_path;
+        item.symbol.absolute_path = metadata.absolute_path;
+        item.symbol.line_start = symbol.line_start;
+        item.symbol.line_end = symbol.line_end;
+        fill_context_code(item, remaining_budget, warnings);
+        items.push_back(std::move(item));
+    }
+
+    if (items.empty()) {
+        warnings.push_back("Signature not found in file: " + signature);
+    }
+
+    std::ostringstream output;
+    output << "{\n";
+    output << "  \"repository\": {\n";
+    output << "    \"repo_root\": \"" << json_escape(repo_root.string()) << "\",\n";
+    output << "    \"index_root\": \"\",\n";
+    output << "    \"last_indexed_at\": \"realtime\"\n";
+    output << "  },\n";
+    output << "  \"query\": {\n";
+    output << "    \"symbols\": " << string_array_json(std::vector<std::string>{signature}, "      ") << ",\n";
+    output << "    \"partial\": true\n";
+    output << "  },\n";
+    output << "  \"budget\": {\n";
+    output << "    \"requested_chars\": " << std::max(0, budget_chars) << ",\n";
+    output << "    \"used_chars\": " << (std::max(0, budget_chars) - remaining_budget) << ",\n";
+    output << "    \"remaining_chars\": " << remaining_budget << "\n";
+    output << "  },\n";
+    output << "  \"symbols\": [\n";
+    for (std::size_t index = 0; index < items.size(); ++index) {
+        const auto& item = items[index];
+        output << "    {\n";
+        output << "      \"requested_symbol\": \"" << json_escape(item.requested_symbol) << "\",\n";
+        output << "      \"level\": 0,\n";
+        output << "      \"kind\": \"" << json_escape(item.symbol.kind) << "\",\n";
+        output << "      \"name\": \"" << json_escape(item.symbol.name) << "\",\n";
+        output << "      \"qualified_name\": \"" << json_escape(item.symbol.qualified_name) << "\",\n";
+        output << "      \"signature\": \"" << json_escape(item.symbol.signature) << "\",\n";
+        output << "      \"file\": \"" << json_escape(item.symbol.relative_path) << "\",\n";
+        output << "      \"line_start\": " << item.symbol.line_start << ",\n";
+        output << "      \"line_end\": " << item.symbol.line_end << ",\n";
+        output << "      \"related\": false,\n";
+        output << "      \"relation_type\": \"\",\n";
+        output << "      \"source_qualified_name\": \"\",\n";
+        output << "      \"truncated\": " << (item.truncated ? "true" : "false") << ",\n";
+        output << "      \"code\": \"" << json_escape(item.code) << "\"\n";
+        output << "    }";
+        if (index + 1 < items.size()) {
+            output << ',';
+        }
+        output << '\n';
+    }
+    output << "  ],\n";
+    output << "  \"reduced_file_tree\": [],\n";
+    output << "  \"warnings\": " << string_array_json(warnings, "    ") << "\n";
+    output << "}\n";
+    return output.str();
+}
+
+int run_direct_context(int argc, char* argv[])
+{
+    const auto source_file = read_option_path(argc, argv, "--file");
+    const auto signature = read_option_string(argc, argv, "--signature");
+    const auto format = read_option_string(argc, argv, "--format").value_or("json");
+    if (!source_file || !signature || signature->empty()) {
+        throw std::runtime_error("Usage: repolens direct-context --file <path> --signature <text> [--repo-root <path>] [--budget-chars <n>] --format json");
+    }
+    if (format != "json") {
+        throw std::runtime_error("direct-context supports --format json only.");
+    }
+
+    std::cout << direct_context_json(
+        *source_file,
+        read_option_path(argc, argv, "--repo-root"),
+        *signature,
+        read_option_int(argc, argv, "--budget-chars", 60000));
+
+    return 0;
+}
+
 std::string context_basic_json(
     const std::filesystem::path& index_dir,
     const std::vector<std::string>& requested_symbols,
@@ -1478,6 +1815,45 @@ std::string context_json(
     return output.str();
 }
 
+void grow_index_for_context(
+    const std::filesystem::path& index_dir,
+    const std::vector<std::string>& requested_symbols,
+    bool partial_match,
+    const std::vector<std::filesystem::path>& grow_files,
+    bool lite_mode)
+{
+    if (grow_files.empty()) {
+        throw std::runtime_error("--grow requires --grow-files <a,b> so growth stays bounded and fast.");
+    }
+
+    std::filesystem::path repo_root;
+    bool needs_growth = false;
+    {
+        const auto database_path = database_path_from_index(index_dir);
+        repolens::SqliteDatabase database{database_path};
+        database.create_schema();
+        const auto status = database.read_repository_status();
+        if (!status) {
+            throw std::runtime_error("Repository metadata was not found. Run init first.");
+        }
+
+        repo_root = std::filesystem::path{status->repo_root};
+        for (const auto& requested_symbol : requested_symbols) {
+            if (database.find_context_symbols(status->repository_id, requested_symbol, partial_match).empty()) {
+                needs_growth = true;
+                break;
+            }
+        }
+    }
+
+    if (!needs_growth) {
+        return;
+    }
+
+    NullProgressReporter reporter;
+    update_selected_files(index_dir, repo_root, grow_files, lite_mode, false, reporter);
+}
+
 int run_context(int argc, char* argv[])
 {
     const auto index_dir = read_option_path(argc, argv, "--index-dir");
@@ -1492,14 +1868,24 @@ int run_context(int argc, char* argv[])
 
     const bool partial_match = has_flag(argc, argv, "--partial");
     const int requested_level = std::max(0, read_option_int(argc, argv, "--level", 0));
+    const auto requested_symbols = split_symbols(*symbols_option);
+    if (has_flag(argc, argv, "--grow")) {
+        std::vector<std::filesystem::path> grow_files;
+        const auto grow_files_option = read_option_string(argc, argv, "--grow-files");
+        if (grow_files_option) {
+            grow_files = split_path_arguments(*grow_files_option);
+        }
+        grow_index_for_context(*index_dir, requested_symbols, partial_match, grow_files, has_flag(argc, argv, "--lite"));
+    }
+
     if (has_flag(argc, argv, "--basic")) {
-        std::cout << context_basic_json(*index_dir, split_symbols(*symbols_option), partial_match, requested_level);
+        std::cout << context_basic_json(*index_dir, requested_symbols, partial_match, requested_level);
         return 0;
     }
 
     std::cout << context_json(
         *index_dir,
-        split_symbols(*symbols_option),
+        requested_symbols,
         read_option_int(argc, argv, "--budget-chars", 60000),
         has_flag(argc, argv, "--include-tree"),
         has_flag(argc, argv, "--include-types"),
@@ -1518,6 +1904,7 @@ std::string update_json(const UpdateSummary& summary)
     output << "    \"index_root\": \"" << json_escape(summary.index_root) << "\",\n";
     output << "    \"database\": \"" << json_escape(summary.database_path) << "\"\n";
     output << "  },\n";
+    output << "  \"mode\": \"" << (summary.lite_mode ? "lite" : "full") << "\",\n";
     output << "  \"timing\": {\n";
     output << "    \"started_at\": \"" << json_escape(summary.started_at) << "\",\n";
     output << "    \"finished_at\": \"" << json_escape(summary.finished_at) << "\",\n";
@@ -1614,6 +2001,29 @@ int run_diagnostics(int argc, char* argv[])
         << "snapshots:          " << counts.snapshots << '\n'
         << "changes:            " << counts.changes << '\n';
 
+    return 0;
+}
+
+int run_compact(int argc, char* argv[])
+{
+    const auto index_dir = read_option_path(argc, argv, "--index-dir");
+    if (!index_dir) {
+        throw std::runtime_error("Usage: repolens compact --index-dir <index_path>");
+    }
+
+    const auto database_path = database_path_from_index(*index_dir);
+    const auto size_before = file_size_or_zero(database_path);
+    repolens::SqliteDatabase database{database_path};
+    database.create_schema();
+    database.compact();
+    const auto size_after = file_size_or_zero(database_path);
+
+    std::cout
+        << "Compaction complete\n"
+        << "Database:     " << database_path.string() << '\n'
+        << "Size before:  " << format_bytes(size_before) << '\n'
+        << "Size after:   " << format_bytes(size_after) << '\n'
+        << "Reclaimed:    " << format_bytes(std::max(0LL, size_before - size_after)) << '\n';
     return 0;
 }
 
@@ -1855,7 +2265,8 @@ std::string handle_http_request(const std::filesystem::path& index_dir, const Ht
         }
 
         if (request.method == "POST" && request.path == "/update") {
-            return http_response(200, "OK", update_json(update_index(index_dir)));
+            NullProgressReporter reporter;
+            return http_response(200, "OK", update_json(update_index(index_dir, reporter, {}, json_bool_value(request.body, "lite", false))));
         }
 
         if (request.method == "POST" && request.path == "/search") {
@@ -2306,8 +2717,16 @@ int main(int argc, char* argv[])
             return run_updateroot(argc, argv);
         }
 
+        if (command == "update-files") {
+            return run_update_files(argc, argv);
+        }
+
         if (command == "diagnostics") {
             return run_diagnostics(argc, argv);
+        }
+
+        if (command == "compact") {
+            return run_compact(argc, argv);
         }
 
         if (command == "search") {
@@ -2316,6 +2735,10 @@ int main(int argc, char* argv[])
 
         if (command == "context") {
             return run_context(argc, argv);
+        }
+
+        if (command == "direct-context") {
+            return run_direct_context(argc, argv);
         }
 
         if (command == "serve") {

@@ -93,10 +93,10 @@ ParseResult RInterpreter::parse_file(const FileMetadata& file) const
     ParseResult result;
     result.language = extension_for(file) == ".rmd" ? "rmarkdown" : "r";
     const auto lines = read_lines(file.absolute_path);
-    const std::regex function_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*function\s*\(([^)]*)\))"};
-    const std::regex assignment_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=))"};
-    const std::regex package_regex{R"(\b(?:library|require)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\))"};
-    const std::regex chunk_regex{R"(^```\{r\s*([^,}]*)?)"};
+    static const std::regex function_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=)\s*function\s*\(([^)]*)\))"};
+    static const std::regex assignment_regex{R"(^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:<-|=))"};
+    static const std::regex package_regex{R"(\b(?:library|require)\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\))"};
+    static const std::regex chunk_regex{R"(^```\{r\s*([^,}]*)?)"};
     for (std::size_t i = 0; i < lines.size(); ++i) {
         const auto text = trim(lines[i].text);
         if (text.empty() || text.front() == '#') continue;

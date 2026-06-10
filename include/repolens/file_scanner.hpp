@@ -19,6 +19,7 @@ struct ScanOptions {
 };
 
 RepositoryScanResult scan_repository(const std::filesystem::path& repo_root, const ScanOptions& options = {});
+FileMetadata scan_file(const std::filesystem::path& repo_root, const std::filesystem::path& file_path);
 std::vector<FileMetadata> scan_repository_files(const std::filesystem::path& repo_root);
 
 } // namespace repolens

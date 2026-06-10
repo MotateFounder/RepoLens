@@ -188,13 +188,13 @@ void parse_rust_source(const std::vector<LineInfo>& lines, repolens::ParseResult
 {
     std::vector<Scope> scopes;
     int brace_depth = 0;
-    const std::regex module_regex{R"(^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex use_regex{R"(^\s*use\s+([^;]+);)"};
-    const std::regex type_regex{R"(^\s*(?:pub(?:\([^)]*\))?\s+)?(struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*))"};
-    const std::regex impl_regex{R"(^\s*impl(?:\s*<[^>]+>)?(?:\s+([A-Za-z_][A-Za-z0-9_:<>]*))?(?:\s+for\s+([A-Za-z_][A-Za-z0-9_:<>]*))?)"};
-    const std::regex function_regex{R"(^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^{;]+))?)"};
-    const std::regex const_regex{R"(^\s*(?:pub\s+)?(?:const|static)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:)"};
-    const std::regex macro_regex{R"(^\s*macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*([A-Za-z_][A-Za-z0-9_]*)!\s*\()"};
+    static const std::regex module_regex{R"(^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex use_regex{R"(^\s*use\s+([^;]+);)"};
+    static const std::regex type_regex{R"(^\s*(?:pub(?:\([^)]*\))?\s+)?(struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*))"};
+    static const std::regex impl_regex{R"(^\s*impl(?:\s*<[^>]+>)?(?:\s+([A-Za-z_][A-Za-z0-9_:<>]*))?(?:\s+for\s+([A-Za-z_][A-Za-z0-9_:<>]*))?)"};
+    static const std::regex function_regex{R"(^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^{;]+))?)"};
+    static const std::regex const_regex{R"(^\s*(?:pub\s+)?(?:const|static)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:)"};
+    static const std::regex macro_regex{R"(^\s*macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*([A-Za-z_][A-Za-z0-9_]*)!\s*\()"};
 
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
@@ -285,8 +285,8 @@ std::string strip_quotes(std::string text)
 void parse_cargo_toml(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     std::string section;
-    const std::regex section_regex{R"(^\s*\[([^\]]+)\])"};
-    const std::regex property_regex{R"(^\s*([A-Za-z0-9_.\-]+)\s*=\s*(.+))"};
+    static const std::regex section_regex{R"(^\s*\[([^\]]+)\])"};
+    static const std::regex property_regex{R"(^\s*([A-Za-z0-9_.\-]+)\s*=\s*(.+))"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
         const auto trimmed = trim(lines[index].text);
@@ -314,7 +314,7 @@ void parse_cargo_toml(const std::vector<LineInfo>& lines, repolens::ParseResult&
 void parse_cargo_lock(const std::vector<LineInfo>& lines, repolens::ParseResult& result)
 {
     bool in_package = false;
-    const std::regex name_regex{R"REGEX(^\s*name\s*=\s*"([^"]+)")REGEX"};
+    static const std::regex name_regex{R"REGEX(^\s*name\s*=\s*"([^"]+)")REGEX"};
     for (std::size_t index = 0; index < lines.size(); ++index) {
         const int line_number = static_cast<int>(index + 1);
         const auto trimmed = trim(lines[index].text);

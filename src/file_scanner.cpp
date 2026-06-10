@@ -22,23 +22,6 @@ bool is_ignored_directory(const std::filesystem::path& path)
     return std::find(ignored.begin(), ignored.end(), name) != ignored.end();
 }
 
-int count_regular_files(const std::filesystem::path& root)
-{
-    int count = 0;
-    std::filesystem::recursive_directory_iterator iterator{
-        root,
-        std::filesystem::directory_options::skip_permission_denied};
-    const std::filesystem::recursive_directory_iterator end;
-
-    for (; iterator != end; ++iterator) {
-        if (iterator->is_regular_file()) {
-            ++count;
-        }
-    }
-
-    return count;
-}
-
 std::string to_hex(std::uint64_t value)
 {
     std::ostringstream stream;
@@ -46,43 +29,24 @@ std::string to_hex(std::uint64_t value)
     return stream.str();
 }
 
-std::string hash_file(const std::filesystem::path& path)
+struct FileContentStats {
+    long long lines = 0;
+    long long chars = 0;
+    std::string hash;
+};
+
+FileContentStats read_content_stats(const std::filesystem::path& path)
 {
     constexpr std::uint64_t offset_basis = 14695981039346656037ull;
     constexpr std::uint64_t prime = 1099511628211ull;
 
     std::ifstream file{path, std::ios::binary};
     if (!file) {
-        throw std::runtime_error("Failed to read file for hashing: " + path.string());
-    }
-
-    std::uint64_t hash = offset_basis;
-    char buffer[8192];
-
-    while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
-        const auto count = file.gcount();
-        for (std::streamsize index = 0; index < count; ++index) {
-            hash ^= static_cast<unsigned char>(buffer[index]);
-            hash *= prime;
-        }
-    }
-
-    return to_hex(hash);
-}
-
-struct TextStats {
-    long long lines = 0;
-    long long chars = 0;
-};
-
-TextStats read_text_stats(const std::filesystem::path& path)
-{
-    std::ifstream file{path, std::ios::binary};
-    if (!file) {
         throw std::runtime_error("Failed to read file for metadata: " + path.string());
     }
 
-    TextStats stats;
+    FileContentStats stats;
+    std::uint64_t hash = offset_basis;
     bool saw_any = false;
     bool ended_with_newline = false;
     char buffer[8192];
@@ -93,7 +57,11 @@ TextStats read_text_stats(const std::filesystem::path& path)
         stats.chars += count;
 
         for (std::streamsize index = 0; index < count; ++index) {
-            ended_with_newline = buffer[index] == '\n';
+            const auto byte = static_cast<unsigned char>(buffer[index]);
+            hash ^= byte;
+            hash *= prime;
+
+            ended_with_newline = byte == '\n';
             if (ended_with_newline) {
                 ++stats.lines;
             }
@@ -104,6 +72,7 @@ TextStats read_text_stats(const std::filesystem::path& path)
         ++stats.lines;
     }
 
+    stats.hash = to_hex(hash);
     return stats;
 }
 
@@ -160,7 +129,7 @@ repolens::FileMetadata read_file_metadata(const std::filesystem::path& repo_root
 {
     const auto absolute_path = std::filesystem::canonical(path);
     const auto relative_path = std::filesystem::relative(absolute_path, repo_root);
-    const auto stats = read_text_stats(absolute_path);
+    const auto stats = read_content_stats(absolute_path);
 
     repolens::FileMetadata metadata;
     metadata.relative_path = normalize_relative_path(relative_path);
@@ -170,7 +139,7 @@ repolens::FileMetadata read_file_metadata(const std::filesystem::path& repo_root
     metadata.line_count = stats.lines;
     metadata.char_count = stats.chars;
     metadata.last_modified_time = file_time_to_string(std::filesystem::last_write_time(absolute_path));
-    metadata.content_hash = hash_file(absolute_path);
+    metadata.content_hash = stats.hash;
     return metadata;
 }
 
@@ -206,7 +175,7 @@ RepositoryScanResult scan_repository(const std::filesystem::path& repo_root, con
             if (std::filesystem::is_regular_file(include)) {
                 ++result.ignored_count;
             } else if (std::filesystem::is_directory(include)) {
-                result.ignored_count += count_regular_files(include);
+                ++result.ignored_count;
             }
             continue;
         }
@@ -256,7 +225,7 @@ RepositoryScanResult scan_repository(const std::filesystem::path& repo_root, con
 
         if (entry.is_directory()) {
             if (is_ignored_directory(entry.path()) || is_excluded_path(entry.path(), excludes)) {
-                result.ignored_count += count_regular_files(entry.path());
+                ++result.ignored_count;
                 iterator.disable_recursion_pending();
             }
             continue;
@@ -281,6 +250,12 @@ RepositoryScanResult scan_repository(const std::filesystem::path& repo_root, con
 std::vector<FileMetadata> scan_repository_files(const std::filesystem::path& repo_root)
 {
     return scan_repository(repo_root).files;
+}
+
+FileMetadata scan_file(const std::filesystem::path& repo_root, const std::filesystem::path& file_path)
+{
+    const auto root = std::filesystem::canonical(repo_root);
+    return read_file_metadata(root, file_path);
 }
 
 } // namespace repolens

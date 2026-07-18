@@ -33,6 +33,7 @@ struct FileContentStats {
     long long lines = 0;
     long long chars = 0;
     std::string hash;
+    std::string simhash;
 };
 
 FileContentStats read_content_stats(const std::filesystem::path& path)
@@ -47,6 +48,22 @@ FileContentStats read_content_stats(const std::filesystem::path& path)
 
     FileContentStats stats;
     std::uint64_t hash = offset_basis;
+    std::array<int, 64> simhash_weights{};
+    std::string token;
+    auto flush_token = [&]() {
+        if (token.empty()) {
+            return;
+        }
+        std::uint64_t token_hash = offset_basis;
+        for (const unsigned char token_byte : token) {
+            token_hash ^= token_byte;
+            token_hash *= prime;
+        }
+        for (int bit = 0; bit < 64; ++bit) {
+            simhash_weights[bit] += ((token_hash >> bit) & 1ull) != 0 ? 1 : -1;
+        }
+        token.clear();
+    };
     bool saw_any = false;
     bool ended_with_newline = false;
     char buffer[8192];
@@ -61,6 +78,12 @@ FileContentStats read_content_stats(const std::filesystem::path& path)
             hash ^= byte;
             hash *= prime;
 
+            if (std::isalnum(byte) || byte == '_') {
+                token.push_back(static_cast<char>(std::tolower(byte)));
+            } else {
+                flush_token();
+            }
+
             ended_with_newline = byte == '\n';
             if (ended_with_newline) {
                 ++stats.lines;
@@ -68,11 +91,19 @@ FileContentStats read_content_stats(const std::filesystem::path& path)
         }
     }
 
+    flush_token();
     if (saw_any && !ended_with_newline) {
         ++stats.lines;
     }
 
+    std::uint64_t simhash = 0;
+    for (int bit = 0; bit < 64; ++bit) {
+        if (simhash_weights[bit] > 0) {
+            simhash |= (1ull << bit);
+        }
+    }
     stats.hash = to_hex(hash);
+    stats.simhash = to_hex(simhash);
     return stats;
 }
 
@@ -140,6 +171,7 @@ repolens::FileMetadata read_file_metadata(const std::filesystem::path& repo_root
     metadata.char_count = stats.chars;
     metadata.last_modified_time = file_time_to_string(std::filesystem::last_write_time(absolute_path));
     metadata.content_hash = stats.hash;
+    metadata.similarity_signature = stats.simhash;
     return metadata;
 }
 
@@ -259,3 +291,6 @@ FileMetadata scan_file(const std::filesystem::path& repo_root, const std::filesy
 }
 
 } // namespace repolens
+
+
+

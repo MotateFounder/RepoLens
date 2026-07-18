@@ -73,3 +73,11 @@ if(REPOLENS_BUILD_STANDALONE AND MSVC)
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
     )
 endif()
+enable_testing()
+add_test(
+    NAME fact_finding_cli
+    COMMAND ${CMAKE_COMMAND}
+        -DREPOLENS_EXE=$<TARGET_FILE:repolens>
+        -DTEST_WORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tests
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/fact_finding_tests.cmake
+)

@@ -311,14 +311,14 @@ The optimization is disabled by default. Use `--optimize-large-repo` for large i
 ### 3. Search the index
 
 ```bash
-repolens search --index-dir /path/to/repolens-index --query Calibration
+repolens search --index-dir /path/to/repolens-index --query MySymbol
 ```
 
 Use filters:
 
 ```bash
 repolens search --index-dir /path/to/repolens-index --query MySymbol --kind method --limit 20
-repolens search --index-dir /path/to/repolens-index --query Tuning --partial --format json
+repolens search --index-dir /path/to/repolens-index --query MySymbol --partial --format json
 ```
 
 ### 4. Resolve deterministic source facts
@@ -727,8 +727,8 @@ JSON output is shaped for scripts and local agents:
       "depth": 1,
       "kind": "function",
       "name": "ValidateInput",
-      "qualified_name": "Calibration::ValidateInput",
-      "file": "src/calibration.cpp",
+      "qualified_name": "MySymbol::ValidateInput",
+      "file": "src/MySymbol.cpp",
       "line_start": 30,
       "line_end": 54
     }
@@ -739,10 +739,10 @@ JSON output is shaped for scripts and local agents:
       "depth": 1,
       "source_symbol_id": 12,
       "target_symbol_id": 42,
-      "source_symbol": "Calibration::MyMethod",
-      "target_symbol": "Calibration::ValidateInput",
+      "source_symbol": "MySymbol::MyMethod",
+      "target_symbol": "MySymbol::ValidateInput",
       "relationship_type": "calls",
-      "file": "src/calibration.cpp",
+      "file": "src/MySymbol.cpp",
       "line": 18,
       "column": 9,
       "confidence": 0.93,
@@ -752,7 +752,7 @@ JSON output is shaped for scripts and local agents:
     }
   ],
   "paths": [
-    {"depth": 1, "confidence": 0.9, "path": "Calibration::MyMethod --calls--> Calibration::ValidateInput"}
+    {"depth": 1, "confidence": 0.9, "path": "MySymbol::MyMethod --calls--> MySymbol::ValidateInput"}
   ]
 }
 ```
@@ -796,7 +796,7 @@ Largest community size: 14
 
 Communities
   [0] size=14 weight=39.45
-    src/calibration.cpp
+    src/MySymbol.cpp
     src/project_manager.cpp
 
 Hubs
@@ -816,7 +816,7 @@ JSON output includes summary stats, communities, hubs, and projected edges:
     "largest_community_size": 14
   },
   "communities": [
-    {"id": 0, "size": 14, "internal_weight": 39.45, "nodes": ["src/calibration.cpp"]}
+    {"id": 0, "size": 14, "internal_weight": 39.45, "nodes": ["src/MySymbol.cpp"]}
   ],
   "hubs": [
     {"rank": 1, "id": "src/project_manager.cpp", "label": "src/project_manager.cpp", "community": 0, "pagerank": 0.083, "in_degree": 12, "out_degree": 7, "incoming_weight": 18.2, "outgoing_weight": 10.4}
@@ -865,10 +865,10 @@ Direct dependents: 1
 Transitive dependents: 3
 
 Affected files
-  src/calibration_panel.cpp
+  src/MySymbol_panel.cpp
 
 Direct dependents
-  [d1] UI::CalibrationPanel::Start confidence=0.97 src/calibration_panel.cpp:42-60
+  [d1] UI::MySymbolPanel::Start confidence=0.97 src/MySymbol_panel.cpp:42-60
 ```
 
 JSON output is shaped for scripts and local agents:
@@ -888,7 +888,7 @@ JSON output is shaped for scripts and local agents:
     "transitive_dependents": 3,
     "low_confidence_edges": 1
   },
-  "affected_files": ["src/calibration_panel.cpp"],
+  "affected_files": ["src/MySymbol_panel.cpp"],
   "direct_dependents": [
     {
       "id": 88,
@@ -896,14 +896,14 @@ JSON output is shaped for scripts and local agents:
       "confidence": 0.97,
       "kind": "function",
       "name": "Start",
-      "qualified_name": "UI::CalibrationPanel::Start",
-      "file": "src/calibration_panel.cpp",
+      "qualified_name": "UI::MySymbolPanel::Start",
+      "file": "src/MySymbol_panel.cpp",
       "line_start": 42,
       "line_end": 60
     }
   ],
   "paths": [
-    {"depth": 1, "confidence": 0.97, "path": "UI::CalibrationPanel::Start --calls--> Calibration::MyMethod"}
+    {"depth": 1, "confidence": 0.97, "path": "UI::MySymbolPanel::Start --calls--> MySymbol::MyMethod"}
   ],
   "confidence_notes": {
     "low_confidence_threshold": 0.9,
@@ -941,7 +941,7 @@ Complex symbols: 4
 Large files: 2
 
 Complex symbols
-  Calibration::MyMethod complexity=14 lines=78 src/calibration.cpp:120-198
+  MySymbol::MyMethod complexity=14 lines=78 src/MySymbol.cpp:120-198
 ```
 
 JSON output is shaped for scripting and MCP clients:
@@ -1022,7 +1022,7 @@ The context package may include:
 Use substring matching:
 
 ```bash
-repolens context --index-dir /path/to/index --symbols "Tuning" --partial --format json
+repolens context --index-dir /path/to/index --symbols "MySymbol" --partial --format json
 ```
 
 Use compact output:

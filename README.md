@@ -317,7 +317,7 @@ repolens search --index-dir /path/to/repolens-index --query Calibration
 Use filters:
 
 ```bash
-repolens search --index-dir /path/to/repolens-index --query AutoTune --kind method --limit 20
+repolens search --index-dir /path/to/repolens-index --query MySymbol --kind method --limit 20
 repolens search --index-dir /path/to/repolens-index --query Tuning --partial --format json
 ```
 
@@ -999,7 +999,7 @@ Recommended agent workflow: import build output after a failed compile, import t
 ```bash
 repolens context \
   --index-dir /path/to/repolens-index \
-  --symbols "MyView,AutoTune" \
+  --symbols "MyView,MySymbol" \
   --budget-chars 12000 \
   --include-tree \
   --format json
@@ -1028,7 +1028,7 @@ repolens context --index-dir /path/to/index --symbols "Tuning" --partial --forma
 Use compact output:
 
 ```bash
-repolens context --index-dir /path/to/index --symbols "AutoTune" --basic --format json
+repolens context --index-dir /path/to/index --symbols "MySymbol" --basic --format json
 ```
 
 Grow the index around a missing symbol without scanning the whole repository:

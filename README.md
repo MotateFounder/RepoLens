@@ -127,14 +127,14 @@ Recommended small-LLM workflow:
 
 ```bash
 repolens update --index-dir /path/to/index --show-diff
-repolens resolve-symbol --index-dir /path/to/index AutoTuneStart --json
-repolens compact-view --index-dir /path/to/index --symbol AutoTuneStart --max-depth 3
-repolens refs --index-dir /path/to/index AutoTuneStart --json
-repolens trace --index-dir /path/to/index AutoTuneStart --direction both --depth 2 --json
-repolens impact --index-dir /path/to/index AutoTuneStart --include-paths --json
+repolens resolve-symbol --index-dir /path/to/index MyMethod --json
+repolens compact-view --index-dir /path/to/index --symbol MyMethod --max-depth 3
+repolens refs --index-dir /path/to/index MyMethod --json
+repolens trace --index-dir /path/to/index MyMethod --direction both --depth 2 --json
+repolens impact --index-dir /path/to/index MyMethod --include-paths --json
 repolens quality --index-dir /path/to/index --json
 repolens signals search --index-dir /path/to/index "compiler error" --json
-repolens context --index-dir /path/to/index AutoTuneStart --signals AutoTuneStart --situated --format json
+repolens context --index-dir /path/to/index MyMethod --signals MyMethod --situated --format json
 ```
 
 Command families:
@@ -208,7 +208,7 @@ Processing files:
 [##########------------------------------] 25%  854 / 3419
 
 Current file:
-src/ViewModels/SystemCalibrationPanelViewModel.cs
+src/ViewModels/MyView.cs
 
 Running totals:
 Added:      12
@@ -326,10 +326,10 @@ repolens search --index-dir /path/to/repolens-index --query Tuning --partial --f
 RepoLens can answer concrete code-fact questions from SQLite without asking an LLM to infer them from raw text.
 
 ```bash
-repolens resolve-symbol --index-dir /path/to/repolens-index SystemCalibrationPanelViewModel
-repolens resolve-symbol --index-dir /path/to/repolens-index AutoTuneStart --file Views/SystemCalibrationPanelViewModel.cs --json
+repolens resolve-symbol --index-dir /path/to/repolens-index MyView
+repolens resolve-symbol --index-dir /path/to/repolens-index MyMethod --file Views/MyView.cs --json
 repolens snippet --index-dir /path/to/repolens-index --file src/main.cpp --start 20 --end 45 --json
-repolens symbol-range --index-dir /path/to/repolens-index AutoTuneStart --json
+repolens symbol-range --index-dir /path/to/repolens-index MyMethod --json
 ```
 
 Human-readable symbol output includes the symbol kind, qualified name, file, line range, stable ID, signature, and parent scope when available. Ambiguous names return every matching candidate in deterministic order so callers can disambiguate by file and line.
@@ -379,9 +379,9 @@ Compact views show file and symbol structure without dumping implementation bodi
 
 ```bash
 repolens compact-view --index-dir /path/to/repolens-index --file src/indexer.cpp
-repolens compact-view --index-dir /path/to/repolens-index --symbol SystemCalibrationPanelViewModel --json
+repolens compact-view --index-dir /path/to/repolens-index --symbol MyView --json
 repolens context --index-dir /path/to/repolens-index --file src/indexer.cpp --compact
-repolens context --index-dir /path/to/repolens-index --symbol AutoTuneStart --compact --json
+repolens context --index-dir /path/to/repolens-index --symbol MyMethod --compact --json
 ```
 
 Useful controls:
@@ -441,9 +441,9 @@ Situating context metadata prepends short descriptions before retrieved code so 
 
 ```bash
 repolens describe --index-dir /path/to/repolens-index --file src/indexer.cpp
-repolens describe --index-dir /path/to/repolens-index --symbol AutoTuneStart --json
+repolens describe --index-dir /path/to/repolens-index --symbol MyMethod --json
 repolens describe --index-dir /path/to/repolens-index --all --deterministic
-repolens context --index-dir /path/to/repolens-index AutoTuneStart --situated --format json
+repolens context --index-dir /path/to/repolens-index MyMethod --situated --format json
 ```
 
 Human-readable descriptions avoid inferred intent:
@@ -469,7 +469,7 @@ JSON output is stable for scripts:
       "target_key": "sha256:...",
       "source": "deterministic",
       "updated_at": "2026-07-08 10:30:00",
-      "description": "Method `AutoTuneStart` in scope `SystemCalibrationPanelViewModel`, defined in `Views/SystemCalibrationPanelViewModel.cs`, lines 120-190."
+      "description": "Method `MyMethod` in scope `MyView`, defined in `Views/MyView.cs`, lines 120-190."
     }
   ]
 }
@@ -478,7 +478,7 @@ JSON output is stable for scripts:
 With `--situated`, context output keeps the exact code snippet but prefixes it with the stored or fallback description:
 
 ```text
-Context: Method `AutoTuneStart` in scope `SystemCalibrationPanelViewModel`, defined in `Views/SystemCalibrationPanelViewModel.cs`, lines 120-190.
+Context: Method `MyMethod` in scope `MyView`, defined in `Views/MyView.cs`, lines 120-190.
 
 <code snippet>
 ```
@@ -490,10 +490,10 @@ Deterministic descriptions are stored in `context_descriptions` with `target_typ
 RepoLens stores a deterministic reference inventory during full indexing. It records resolved same-file calls/references, parent-child containment, parser-discovered inheritance or implementation text, imports/includes/usings, and unresolved call-like references instead of silently dropping them.
 
 ```bash
-repolens refs --index-dir /path/to/repolens-index AutoTuneStart
-repolens refs --index-dir /path/to/repolens-index AutoTuneStart --json
-repolens relationships --index-dir /path/to/repolens-index SystemCalibrationPanelViewModel
-repolens relationships --index-dir /path/to/repolens-index SystemCalibrationPanelViewModel --type calls
+repolens refs --index-dir /path/to/repolens-index MyMethod
+repolens refs --index-dir /path/to/repolens-index MyMethod --json
+repolens relationships --index-dir /path/to/repolens-index MyView
+repolens relationships --index-dir /path/to/repolens-index MyView --type calls
 repolens unresolved-refs --index-dir /path/to/repolens-index --json
 ```
 
@@ -621,8 +621,8 @@ Supported C++ receiver patterns include:
 ProjectManager manager;
 manager.loadProject(path);
 
-SystemCalibrationPanelViewModel* vm;
-vm->AutoTuneStart();
+MyView* vm;
+vm->MyMethod();
 
 std::unique_ptr<ProjectManager> manager;
 manager->loadProject(path);
@@ -688,10 +688,10 @@ Known limitations: RepoLens currently imports SCIP data from the JSON adapter fo
 Graph tracing follows the stored relationship inventory so agents can ask for callers, callees, dependencies, and nearby related symbols without searching raw source text. Traversal is deterministic, cycle-safe, depth-limited, and sorted by confidence, file path, and source location.
 
 ```bash
-repolens trace --index-dir /path/to/repolens-index AutoTuneStart --direction callees --depth 2
-repolens trace --index-dir /path/to/repolens-index AutoTuneStart --direction callers --depth 3
-repolens trace --index-dir /path/to/repolens-index AutoTuneStart --direction both --depth 2 --min-confidence 0.7
-repolens trace --index-dir /path/to/repolens-index AutoTuneStart --budget-chars 12000 --json
+repolens trace --index-dir /path/to/repolens-index MyMethod --direction callees --depth 2
+repolens trace --index-dir /path/to/repolens-index MyMethod --direction callers --depth 3
+repolens trace --index-dir /path/to/repolens-index MyMethod --direction both --depth 2 --min-confidence 0.7
+repolens trace --index-dir /path/to/repolens-index MyMethod --budget-chars 12000 --json
 ```
 
 Direction options:
@@ -705,9 +705,9 @@ both     follow incoming and outgoing relationships
 Useful controls:
 
 ```bash
-repolens trace --index-dir /path/to/index AutoTuneStart --depth 1
-repolens trace --index-dir /path/to/index AutoTuneStart --max-results 50
-repolens trace --index-dir /path/to/index AutoTuneStart --budget-chars 6000 --json
+repolens trace --index-dir /path/to/index MyMethod --depth 1
+repolens trace --index-dir /path/to/index MyMethod --max-results 50
+repolens trace --index-dir /path/to/index MyMethod --budget-chars 6000 --json
 ```
 
 Human-readable output includes the root symbol, direction, depth, reached symbols, relationship edges, paths, file paths, line ranges, and confidence values.
@@ -716,7 +716,7 @@ JSON output is shaped for scripts and local agents:
 
 ```json
 {
-  "root_symbol": "AutoTuneStart",
+  "root_symbol": "MyMethod",
   "direction": "callees",
   "max_depth": 2,
   "truncated": false,
@@ -739,7 +739,7 @@ JSON output is shaped for scripts and local agents:
       "depth": 1,
       "source_symbol_id": 12,
       "target_symbol_id": 42,
-      "source_symbol": "Calibration::AutoTuneStart",
+      "source_symbol": "Calibration::MyMethod",
       "target_symbol": "Calibration::ValidateInput",
       "relationship_type": "calls",
       "file": "src/calibration.cpp",
@@ -752,7 +752,7 @@ JSON output is shaped for scripts and local agents:
     }
   ],
   "paths": [
-    {"depth": 1, "confidence": 0.9, "path": "Calibration::AutoTuneStart --calls--> Calibration::ValidateInput"}
+    {"depth": 1, "confidence": 0.9, "path": "Calibration::MyMethod --calls--> Calibration::ValidateInput"}
   ]
 }
 ```
@@ -770,7 +770,7 @@ repolens architecture --index-dir /path/to/repolens-index --communities
 repolens architecture --index-dir /path/to/repolens-index --communities --level file --json
 repolens architecture --index-dir /path/to/repolens-index --hubs
 repolens architecture --index-dir /path/to/repolens-index --hubs --level symbol --top 25 --json
-repolens architecture --index-dir /path/to/repolens-index --hubs --seed AutoTuneStart
+repolens architecture --index-dir /path/to/repolens-index --hubs --seed MyMethod
 ```
 
 Levels:
@@ -833,10 +833,10 @@ Interpretation notes: architecture analysis only uses resolved relationships wit
 Impact analysis follows reverse dependencies in the stored relationship graph so RepoLens can report the likely ripple effect of changing a function, class, file, or symbol. It is deterministic and confidence-aware: direct callers are listed before transitive callers, shorter paths rank before longer paths, higher-confidence paths rank first within the same depth, and file-path tie-breakers keep repeated runs stable.
 
 ```bash
-repolens impact --index-dir /path/to/repolens-index AutoTuneStart
-repolens impact --index-dir /path/to/repolens-index AutoTuneStart --depth 3
+repolens impact --index-dir /path/to/repolens-index MyMethod
+repolens impact --index-dir /path/to/repolens-index MyMethod --depth 3
 repolens impact --index-dir /path/to/repolens-index --file src/indexer.cpp
-repolens impact --index-dir /path/to/repolens-index AutoTuneStart --include-paths --json
+repolens impact --index-dir /path/to/repolens-index MyMethod --include-paths --json
 ```
 
 Output includes:
@@ -856,7 +856,7 @@ Human-readable output is shaped like:
 
 ```text
 Impact Analysis
-Root: AutoTuneStart
+Root: MyMethod
 Root type: symbol
 Depth: 2
 Affected files: 2
@@ -875,7 +875,7 @@ JSON output is shaped for scripts and local agents:
 
 ```json
 {
-  "root_target": "AutoTuneStart",
+  "root_target": "MyMethod",
   "root_type": "symbol",
   "max_depth": 2,
   "truncated": false,
@@ -903,7 +903,7 @@ JSON output is shaped for scripts and local agents:
     }
   ],
   "paths": [
-    {"depth": 1, "confidence": 0.97, "path": "UI::CalibrationPanel::Start --calls--> Calibration::AutoTuneStart"}
+    {"depth": 1, "confidence": 0.97, "path": "UI::CalibrationPanel::Start --calls--> Calibration::MyMethod"}
   ],
   "confidence_notes": {
     "low_confidence_threshold": 0.9,
@@ -941,7 +941,7 @@ Complex symbols: 4
 Large files: 2
 
 Complex symbols
-  Calibration::AutoTuneStart complexity=14 lines=78 src/calibration.cpp:120-198
+  Calibration::MyMethod complexity=14 lines=78 src/calibration.cpp:120-198
 ```
 
 JSON output is shaped for scripting and MCP clients:
@@ -968,7 +968,7 @@ repolens signals import --index-dir /path/to/repolens-index --type test-output -
 repolens signals import --index-dir /path/to/repolens-index --type chat --file ./notes/chat.md
 repolens signals list --index-dir /path/to/repolens-index --json
 repolens signals search --index-dir /path/to/repolens-index "compiler error" --json
-repolens context --index-dir /path/to/repolens-index --signals AutoTuneStart --format json
+repolens context --index-dir /path/to/repolens-index --signals MyMethod --format json
 ```
 
 Imported signals are text data only. RepoLens does not execute logs, scripts, terminal transcripts, or chat notes. Each virtual file stores a signal type, original source path, stable virtual path, import timestamp, content hash, size, line count, truncation flag, and content. Re-importing the same source path refreshes the virtual file content and metadata.
@@ -985,7 +985,7 @@ JSON search output is shaped like:
       "source_path": "logs/build.txt",
       "content_hash": "...",
       "line": 2,
-      "snippet": "compiler error C1001 near AutoTuneStart"
+      "snippet": "compiler error C1001 near MyMethod"
     }
   ]
 }
@@ -999,7 +999,7 @@ Recommended agent workflow: import build output after a failed compile, import t
 ```bash
 repolens context \
   --index-dir /path/to/repolens-index \
-  --symbols "SystemCalibrationPanelViewModel,AutoTune" \
+  --symbols "MyView,AutoTune" \
   --budget-chars 12000 \
   --include-tree \
   --format json
@@ -1465,7 +1465,7 @@ List tools after initialization:
 Call a tool:
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_symbol","arguments":{"name":"AutoTuneStart","file":"Views/SystemCalibrationPanelViewModel.cs"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_symbol","arguments":{"name":"MyMethod","file":"Views/MyView.cs"}}}
 ```
 
 Tool results include concise human-readable `content` plus machine-readable `structuredContent`. RepoLens keeps stdout line-oriented: each response is one compact JSON-RPC object on one line with no embedded raw newlines. For backwards compatibility with clients that do not read `structuredContent`, RepoLens keeps the text block human-readable rather than duplicating potentially large JSON payloads into text; clients should use `structuredContent` for machine-readable data.
@@ -1473,7 +1473,7 @@ Tool results include concise human-readable `content` plus machine-readable `str
 Example successful response shape:
 
 ```json
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"Resolved 1 matching symbol. Results are available in structuredContent.symbols."}],"structuredContent":{"symbols":[{"name":"AutoTuneStart","kind":"method","file":"Views/SystemCalibrationPanelViewModel.cs","line_start":120,"line_end":190}],"truncated":false},"isError":false}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"Resolved 1 matching symbol. Results are available in structuredContent.symbols."}],"structuredContent":{"symbols":[{"name":"MyMethod","kind":"method","file":"Views/MyView.cs","line_start":120,"line_end":190}],"truncated":false},"isError":false}}
 ```
 
 Snippet request:
@@ -1541,7 +1541,7 @@ stdin  -> {"jsonrpc":"2.0","id":3,"method":"tools/list"}
 stdout <- {"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"status","inputSchema":...,"outputSchema":...,"annotations":...}]}}
 stdin  -> {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"status","arguments":{}}}
 stdout <- {"jsonrpc":"2.0","id":4,"result":{"content":[...],"structuredContent":{"repo_root":...},"isError":false}}
-stdin  -> {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"resolve_symbol","arguments":{"name":"AutoTuneStart"}}}
+stdin  -> {"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"resolve_symbol","arguments":{"name":"MyMethod"}}}
 stdout <- {"jsonrpc":"2.0","id":5,"result":{"content":[...],"structuredContent":{"symbols":[...]},"isError":false}}
 stdin  -> {"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"search","arguments":{}}}
 stdout <- {"jsonrpc":"2.0","id":6,"result":{"content":[...],"structuredContent":{"error":...},"isError":true}}
